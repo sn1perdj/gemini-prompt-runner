@@ -1,0 +1,32 @@
+{
+  "manifest_version": 3,
+  "name": "Gemini Prompt Runner",
+  "version": "1.0.0",
+  "description": "Automatically run a list of prompts on Google Gemini with a system prompt prefix.",
+  "permissions": ["storage", "activeTab", "scripting", "clipboardWrite"],
+  "host_permissions": ["https://gemini.google.com/*"],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Gemini Prompt Runner",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://gemini.google.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

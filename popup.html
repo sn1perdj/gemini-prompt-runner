@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gemini Prompt Runner</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="app">
+    <div class="header">
+      <div class="header-icon">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" stroke="#4F46E5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <div class="header-text">
+        <h1>Prompt Runner</h1>
+        <span class="subtitle">Google Gemini Automation</span>
+      </div>
+    </div>
+
+    <div class="status-bar" id="statusBar">
+      <div class="status-indicator" id="statusDot"></div>
+      <span id="statusText">Ready</span>
+    </div>
+
+    <div class="progress-container" id="progressContainer" style="display: none;">
+      <div class="progress-info">
+        <span id="progressLabel">Prompt 0 / 0</span>
+        <span id="progressPercent">0%</span>
+      </div>
+      <div class="progress-bar">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="systemPrompt">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>
+        </svg>
+        System Prompt
+      </label>
+      <textarea id="systemPrompt" placeholder="This will prefix every prompt you send..." rows="4"></textarea>
+    </div>
+
+    <div class="form-group">
+      <div class="label-row">
+        <label>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 5v14M5 12h14"/>
+          </svg>
+          Prompts
+        </label>
+        <span class="badge" id="promptCount">0</span>
+      </div>
+      <div class="add-prompt-row">
+        <textarea id="promptInput" placeholder="Type or paste a prompt, then click Add..." rows="3"></textarea>
+        <button class="btn btn-add" id="addPromptBtn" title="Add prompt">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 5v14M5 12h14"/>
+          </svg>
+        </button>
+      </div>
+      <div class="prompt-list" id="promptList">
+        <div class="empty-state" id="emptyState">
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#C7D2FE" stroke-width="1.5">
+            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/>
+          </svg>
+          <span>No prompts added yet</span>
+        </div>
+      </div>
+      <div class="list-actions" id="listActions" style="display: none;">
+        <button class="btn btn-clear" id="clearAllBtn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+          </svg>
+          Clear All
+        </button>
+      </div>
+    </div>
+
+    <div class="buttons">
+      <button id="startBtn" class="btn btn-primary">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M8 5v14l11-7z"/>
+        </svg>
+        Start
+      </button>
+      <button id="pauseBtn" class="btn btn-warning" disabled>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/>
+        </svg>
+        Pause
+      </button>
+      <button id="stopBtn" class="btn btn-danger" disabled>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+          <path d="M18 6L6 18M6 6l12 12"/>
+        </svg>
+        Stop
+      </button>
+    </div>
+
+    <div class="log-container" id="logContainer">
+      <div class="log-header">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/>
+        </svg>
+        Activity Log
+      </div>
+      <div id="logOutput" class="log-output"></div>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
