@@ -5,6 +5,7 @@
   let currentIndex = 0;
   let prompts = [];
   let systemPrompt = '';
+  let startNewChat = true;
   const POST_COMPLETION_DELAY = 1500;
 
   function waitForElement(selector, timeout = 10000) {
@@ -90,7 +91,7 @@
         for (const btn of buttons) {
           if (btn.querySelector('svg') && !btn.disabled) {
             const label = (btn.getAttribute('aria-label') || '').toLowerCase();
-            if (!label.includes('attach') && !label.includes('upload') && !label.includes('microphone') && !label.includes('mic')) {
+            if (!label.includes('attach') && !label.includes('upload') && !label.includes('microphone') && !label.includes('mic') && !label.includes('image')) {
               return btn;
             }
           }
@@ -105,7 +106,7 @@
     const allButtons = Array.from(document.querySelectorAll('button'));
     for (const btn of allButtons) {
       const label = (btn.getAttribute('aria-label') || '').toLowerCase();
-      if (label.includes('new chat') || label.includes('new conversation') || label.includes('start')) {
+      if (label.includes('new chat') || label.includes('new conversation') || label.includes('start new')) {
         return btn;
       }
     }
@@ -114,7 +115,7 @@
     for (const link of links) {
       const href = (link.getAttribute('href') || '').toLowerCase();
       const text = (link.textContent || '').toLowerCase();
-      if (href.includes('/app') || text.includes('new chat') || text.includes('newConversation')) {
+      if (href === '/app' || text.includes('new chat') || text.includes('newConversation')) {
         return link;
       }
     }
@@ -122,129 +123,99 @@
     return null;
   }
 
-  function findStopButton() {
+  function findStopGeneratingButton() {
     const allButtons = Array.from(document.querySelectorAll('button'));
     for (const btn of allButtons) {
       const label = (btn.getAttribute('aria-label') || '').toLowerCase();
-      if (label.includes('stop')) {
-        return btn;
+      if (label === 'stop generating' || label === 'stop' || label === 'stop response' || label === 'halt') {
+        if (btn.offsetParent !== null && !btn.disabled && window.getComputedStyle(btn).opacity !== '0' && window.getComputedStyle(btn).visibility !== 'hidden') {
+          return btn;
+        }
       }
     }
+
+    for (const btn of allButtons) {
+      const label = (btn.getAttribute('aria-label') || '').toLowerCase();
+      if (label.includes('stop') && !label.includes('stop watch') && !label.includes('stopwatch') && !label.includes('stop sharing')) {
+        if (btn.offsetParent !== null && !btn.disabled && window.getComputedStyle(btn).opacity !== '0' && window.getComputedStyle(btn).visibility !== 'hidden') {
+          return btn;
+        }
+      }
+    }
+
     return null;
   }
 
-  async function pasteText(text) {
-    const input = findInputArea();
-    if (!input) return false;
-
-    input.focus();
-    await sleep(200);
-
-    input.textContent = '';
-    await sleep(50);
-
-    input.dispatchEvent(new Event('input', { bubbles: true }));
-    await sleep(50);
-
-    try {
-      const clipboardItems = [
-        new ClipboardItem({
-          'text/plain': new Blob([text], { type: 'text/plain' }),
-        }),
-      ];
-      await navigator.clipboard.write(clipboardItems);
-    } catch (e) {
-      // fallback: try older clipboard API
-      try {
-        await navigator.clipboard.writeText(text);
-      } catch (e2) {
-        // fallback: use execCommand
-        document.execCommand('selectAll', false, null);
-        document.execCommand('delete', false, null);
-        await sleep(50);
-        document.execCommand('insertText', false, text);
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-        input.dispatchEvent(new Event('change', { bubbles: true }));
-        await sleep(300);
+  function isResponseStreaming() {
+    const responseContainers = document.querySelectorAll('.response-container-text, [data-response], .model-response, .message-content, .conversation-container');
+    for (const container of responseContainers) {
+      const streamingIndicators = container.querySelectorAll('.loading, .streaming, [data-streaming="true"], .typing-indicator');
+      if (streamingIndicators.length > 0) {
         return true;
       }
     }
-
-    input.focus();
-    await sleep(100);
-
-    // Clear existing content first
-    document.execCommand('selectAll', false, null);
-    document.execCommand('delete', false, null);
-    await sleep(100);
-
-    // Dispatch paste event
-    document.execCommand('paste', false, null);
-    await sleep(300);
-
-    // If paste command didn't work, try DataTransfer approach
-    if (!input.textContent || input.textContent.trim().length === 0) {
-      const dt = new DataTransfer();
-      dt.setData('text/plain', text);
-      const pasteEvent = new ClipboardEvent('paste', {
-        clipboardData: dt,
-        bubbles: true,
-        cancelable: true,
-      });
-      input.dispatchEvent(pasteEvent);
-      await sleep(300);
-    }
-
-    // If still empty, try insertText as final fallback
-    if (!input.textContent || input.textContent.trim().length === 0) {
-      document.execCommand('insertText', false, text);
-      await sleep(200);
-    }
-
-    input.dispatchEvent(new Event('input', { bubbles: true }));
-    input.dispatchEvent(new Event('change', { bubbles: true }));
-    await sleep(200);
-
-    return true;
+    return false;
   }
 
-  async function typeTextWithInsertText(text) {
+  async function enterText(text) {
     const input = findInputArea();
     if (!input) return false;
 
     input.focus();
     await sleep(200);
 
-    input.textContent = '';
-    document.execCommand('selectAll', false, null);
-    document.execCommand('delete', false, null);
-    await sleep(50);
+    try {
+      document.execCommand('selectAll', false, null);
+      document.execCommand('delete', false, null);
+    } catch (e) {
+      input.textContent = '';
+    }
+
+    await sleep(80);
 
     input.dispatchEvent(new Event('input', { bubbles: true }));
-    await sleep(100);
+    await sleep(80);
 
     const lines = text.split('\n');
     for (let i = 0; i < lines.length; i++) {
       document.execCommand('insertText', false, lines[i]);
       if (i < lines.length - 1) {
-        const shiftEnter = new KeyboardEvent('keydown', {
-          key: 'Enter',
-          code: 'Enter',
-          which: 13,
-          keyCode: 13,
-          shiftKey: true,
-          bubbles: true,
-        });
-        input.dispatchEvent(shiftEnter);
-        await sleep(20);
+        document.execCommand('insertParagraph', false, null);
+        // Minimal delay to ensure the editor registers the paragraph break
+        if (i % 10 === 0) await sleep(5);
       }
     }
 
     input.dispatchEvent(new Event('input', { bubbles: true }));
     input.dispatchEvent(new Event('change', { bubbles: true }));
-    await sleep(300);
+    await sleep(150);
 
     return true;
+  }
+
+  async function createNewChat() {
+    sendProgress('progress', {
+      currentIndex: currentIndex + 1,
+      total: prompts.length,
+      currentPrompt: prompts[currentIndex],
+      detail: 'Starting new chat...',
+    });
+
+    const newChatBtn = findNewChatButton();
+    if (newChatBtn) {
+      newChatBtn.click();
+      await sleep(2500);
+    } else {
+      window.location.href = 'https://gemini.google.com/app';
+      await sleep(4000);
+    }
+
+    const input = await waitForElement('div[contenteditable="true"]', 8000);
+    if (!input) {
+      await sleep(3000);
+    }
+
+    await sleep(500);
   }
 
   function sleep(ms) {
@@ -255,14 +226,12 @@
     let input = findInputArea();
     if (input) return input;
 
-    // Try navigating to /app
     if (!window.location.pathname.includes('/app')) {
       window.location.href = 'https://gemini.google.com/app';
-      await sleep(3000);
+      await sleep(4000);
     }
 
-    // Wait for input to appear
-    input = await waitForElement('div[contenteditable="true"]', 8000);
+    input = await waitForElement('div[contenteditable="true"]', 10000);
     if (input) return input;
 
     return null;
@@ -284,7 +253,6 @@
       return false;
     }
 
-    // Wait for button to become enabled
     let attempts = 0;
     while (sendBtn.disabled && attempts < 15) {
       await sleep(300);
@@ -292,7 +260,7 @@
       attempts++;
     }
 
-    if (sendBtn.disabled) {
+    if (!sendBtn || sendBtn.disabled) {
       sendProgress('error', { error: 'Send button is disabled. Text may not have been entered properly.' });
       return false;
     }
@@ -303,59 +271,81 @@
 
   async function waitForCompletion(maxWaitMs = 300000) {
     const startTime = Date.now();
-    let wasGenerating = false;
+    let sawStopButton = false;
+    let stopButtonGoneCount = 0;
 
-    await sleep(2000);
+    // Phase 1: Wait briefly for the message to be sent and generation to potentially start
+    await sleep(1500);
 
+    // Phase 2: Wait for generation to complete
     while (true) {
       if (isStopped) return false;
 
       while (isPaused) {
-        await sleep(500);
+        await sleep(300);
         if (isStopped) return false;
       }
 
-      const stopBtn = findStopButton();
       const elapsed = Date.now() - startTime;
+      if (elapsed > maxWaitMs) return true;
 
-      if (elapsed > maxWaitMs) {
-        break;
-      }
+      const stopBtn = findStopGeneratingButton();
+      const streaming = isResponseStreaming();
 
-      if (stopBtn) {
-        wasGenerating = true;
-        await sleep(1000);
+      if (stopBtn || streaming) {
+        sawStopButton = true;
+        stopButtonGoneCount = 0;
+        await sleep(500);
         continue;
       }
 
-      if (wasGenerating) {
-        // Stop button disappeared = Gemini finished
-        await sleep(1500);
-
-        // Check for "regenerate" or other indicators
-        await sleep(1000);
-        return true;
+      if (sawStopButton) {
+        stopButtonGoneCount++;
+        if (stopButtonGoneCount >= 3) {
+          await sleep(400);
+          return true;
+        }
+        await sleep(400);
+        continue;
       }
 
-      // If waiting too long with no stop button appearing, the prompt may not have been sent
+      // No stop button ever seen - check if send button is back or input is clear
+      const sendBtn = findSendButton();
       const inputArea = findInputArea();
-      if (inputArea && inputArea.textContent.trim().length === 0) {
-        if (elapsed > 5000) {
-          return true;
+      
+      if (elapsed > 4000) {
+        if (sendBtn && !sendBtn.disabled && inputArea && inputArea.textContent.trim().length === 0) {
+           return true;
         }
       }
 
-      await sleep(1000);
-    }
+      // Failsafe: after 15 seconds with no stop button or streaming seen, assume done
+      if (elapsed > 15000 && !sawStopButton) {
+        return true;
+      }
 
-    return true;
+      await sleep(500);
+    }
   }
 
   function sendProgress(type, data = {}) {
+    const payload = { type, ...data };
     try {
-      chrome.runtime.sendMessage({ type, ...data });
+      chrome.runtime.sendMessage(payload);
     } catch (e) {
       // popup may be closed
+    }
+    // Also persist to storage so popup can restore state on reopen
+    if (type === 'progress' || type === 'complete' || type === 'error' || type === 'stopped' || type === 'prompt_done') {
+      try {
+        chrome.storage.local.set({
+          lastProgress: payload,
+          currentIndex: data.currentIndex || currentIndex,
+          totalPrompts: data.total || prompts.length,
+        });
+      } catch (e) {
+        // storage may not be available
+      }
     }
   }
 
@@ -365,6 +355,16 @@
       ? `${systemPrompt}\n\n${prompt}`
       : prompt;
 
+    sendProgress('progress', {
+      currentIndex: index + 1,
+      total: prompts.length,
+      currentPrompt: prompt,
+    });
+
+    if (startNewChat && index > 0) {
+      await createNewChat();
+    }
+
     const input = await ensureInputReady();
     if (!input) {
       sendProgress('error', { error: 'Could not find input area. Open gemini.google.com/app' });
@@ -373,30 +373,15 @@
 
     sendProgress('typing', {});
 
-    // Primary: try paste method
-    let success = await pasteText(fullPrompt);
+    await enterText(fullPrompt);
 
-    // Fallback: if paste didn't populate the field, try insertText
-    const checkInput = findInputArea();
-    if (checkInput && (!checkInput.textContent || checkInput.textContent.trim().length === 0)) {
-      sendProgress('typing', {});
-      success = await typeTextWithInsertText(fullPrompt);
-    }
+    await sleep(500);
 
-    await sleep(800);
-
-    // Verify text was entered
     const verifyInput = findInputArea();
-    if (verifyInput && (!verifyInput.textContent || verifyInput.textContent.trim().length === 0)) {
-      sendProgress('error', { error: 'Failed to enter text into Gemini input. Try clicking the input area first.' });
+    if (!verifyInput || !verifyInput.textContent || verifyInput.textContent.trim().length === 0) {
+      sendProgress('error', { error: 'Failed to enter text. Try clicking the Gemini input area first.' });
       return false;
     }
-
-    sendProgress('progress', {
-      currentIndex: index + 1,
-      total: prompts.length,
-      currentPrompt: prompt,
-    });
 
     sendProgress('waiting', {});
 
@@ -417,33 +402,40 @@
     return true;
   }
 
-  async function startExecution(sysPrompt, promptList) {
+  async function startExecution(sysPrompt, promptList, options) {
     systemPrompt = sysPrompt;
     prompts = promptList;
+    startNewChat = options?.newChat !== false;
     currentIndex = 0;
     isRunning = true;
     isPaused = false;
     isStopped = false;
 
-    // Verify we're on the right page
     if (!window.location.href.includes('gemini.google.com')) {
       sendProgress('error', { error: 'Please navigate to gemini.google.com/app first' });
       isRunning = false;
+      await chrome.storage.local.set({ state: 'idle' });
       return;
+    }
+
+    if (startNewChat && prompts.length > 1) {
+      await createNewChat();
     }
 
     for (let i = 0; i < prompts.length; i++) {
       if (isStopped) {
         sendProgress('stopped', {});
         isRunning = false;
+        await chrome.storage.local.set({ state: 'idle' });
         return;
       }
 
       while (isPaused) {
-        await sleep(500);
+        await sleep(300);
         if (isStopped) {
           sendProgress('stopped', {});
           isRunning = false;
+          await chrome.storage.local.set({ state: 'idle' });
           return;
         }
       }
@@ -460,21 +452,23 @@
 
       if (!success) {
         isRunning = false;
+        await chrome.storage.local.set({ state: 'idle' });
         return;
       }
 
       if (isStopped) {
         sendProgress('stopped', {});
         isRunning = false;
+        await chrome.storage.local.set({ state: 'idle' });
         return;
       }
 
-      // Small buffer after Gemini finishes before next prompt
       if (i < prompts.length - 1) {
         await sleepWithPauseCheck(POST_COMPLETION_DELAY);
         if (isStopped) {
           sendProgress('stopped', {});
           isRunning = false;
+          await chrome.storage.local.set({ state: 'idle' });
           return;
         }
       }
@@ -490,12 +484,12 @@
   }
 
   async function sleepWithPauseCheck(totalMs) {
-    const intervalMs = 200;
+    const intervalMs = 150;
     let waited = 0;
     while (waited < totalMs) {
       if (isStopped) return;
       while (isPaused) {
-        await sleep(200);
+        await sleep(150);
         if (isStopped) return;
       }
       await sleep(intervalMs);
@@ -525,7 +519,7 @@
         return true;
       }
 
-      startExecution(message.systemPrompt, message.prompts);
+      startExecution(message.systemPrompt, message.prompts, { newChat: message.newChat });
       sendResponse({ status: 'started' });
     } else if (message.action === 'pause') {
       pauseExecution();

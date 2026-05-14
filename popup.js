@@ -16,23 +16,74 @@ const progressLabel = document.getElementById('progressLabel');
 const progressPercent = document.getElementById('progressPercent');
 const progressFill = document.getElementById('progressFill');
 const logOutput = document.getElementById('logOutput');
+const geminiWarning = document.getElementById('geminiWarning');
+const openGeminiBtn = document.getElementById('openGeminiBtn');
+const newChatToggle = document.getElementById('newChatToggle');
 
 let prompts = [];
-let editingIndex = -1;
+const MAX_LOG_ENTRIES = 200;
 
 function log(message, type = 'info') {
   const now = new Date();
   const time = now.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
   const entry = document.createElement('div');
   entry.className = `log-entry ${type}`;
-  entry.innerHTML = `<span class="time">[${time}]</span> ${message}`;
+  const timeSpan = document.createElement('span');
+  timeSpan.className = 'time';
+  timeSpan.textContent = `[${time}]`;
+  entry.appendChild(timeSpan);
+  entry.appendChild(document.createTextNode(` ${message}`));
   logOutput.appendChild(entry);
   logOutput.scrollTop = logOutput.scrollHeight;
+
+  while (logOutput.childElementCount > MAX_LOG_ENTRIES) {
+    logOutput.removeChild(logOutput.firstChild);
+  }
+
+  persistLog(message, type, time);
+}
+
+function persistLog(message, type, time) {
+  try {
+    chrome.storage.local.get('logEntries', (data) => {
+      const entries = data.logEntries || [];
+      entries.push({ message, type, time });
+      if (entries.length > MAX_LOG_ENTRIES) {
+        entries.splice(0, entries.length - MAX_LOG_ENTRIES);
+      }
+      chrome.storage.local.set({ logEntries: entries });
+    });
+  } catch (e) {
+    // ignore storage errors
+  }
+}
+
+function restoreLogs() {
+  try {
+    chrome.storage.local.get('logEntries', (data) => {
+      const entries = data.logEntries || [];
+      logOutput.innerHTML = '';
+      entries.forEach(e => {
+        const entry = document.createElement('div');
+        entry.className = `log-entry ${e.type}`;
+        const timeSpan = document.createElement('span');
+        timeSpan.className = 'time';
+        timeSpan.textContent = `[${e.time}]`;
+        entry.appendChild(timeSpan);
+        entry.appendChild(document.createTextNode(` ${e.message}`));
+        logOutput.appendChild(entry);
+      });
+      logOutput.scrollTop = logOutput.scrollHeight;
+    });
+  } catch (e) {
+    // ignore
+  }
 }
 
 function setStatus(text, state) {
   statusText.textContent = text;
   statusDot.className = 'status-indicator ' + state;
+  chrome.storage.local.set({ statusText: text, statusState: state });
 }
 
 function updateProgress(current, total) {
@@ -57,6 +108,7 @@ function setButtons(state) {
     systemPromptEl.disabled = false;
     promptInputEl.disabled = false;
     addPromptBtn.disabled = false;
+    newChatToggle.disabled = false;
     setPromptListInteractive(true);
   } else if (state === 'running') {
     startBtn.disabled = true;
@@ -65,6 +117,7 @@ function setButtons(state) {
     systemPromptEl.disabled = true;
     promptInputEl.disabled = true;
     addPromptBtn.disabled = true;
+    newChatToggle.disabled = true;
     setPromptListInteractive(false);
   } else if (state === 'paused') {
     startBtn.disabled = true;
@@ -232,6 +285,7 @@ promptInputEl.addEventListener('keydown', (e) => {
 
 clearAllBtn.addEventListener('click', () => {
   if (prompts.length === 0) return;
+  if (!confirm('Clear all prompts? This cannot be undone.')) return;
   prompts = [];
   savePrompts();
   renderPromptList();
@@ -248,18 +302,27 @@ async function sendMessageToContentScript(action, data = {}) {
   const tab = await getGeminiTab();
   if (!tab) {
     setStatus('Gemini tab not found', 'error');
+    geminiWarning.style.display = 'flex';
     log('No Gemini tab found. Open gemini.google.com/app', 'error');
     return null;
   }
+  geminiWarning.style.display = 'none';
   try {
     const response = await chrome.tabs.sendMessage(tab.id, { action, ...data });
     return response;
   } catch (e) {
     setStatus('Connection error', 'error');
-    log('Could not connect to Gemini. Try refreshing the page.', 'error');
+    log('Could not connect. Try refreshing the Gemini page.', 'error');
     return null;
   }
 }
+
+openGeminiBtn.addEventListener('click', () => {
+  chrome.tabs.create({ url: 'https://gemini.google.com/app' });
+  geminiWarning.style.display = 'none';
+  setStatus('Opening Gemini...', 'ready');
+  log('Opening gemini.google.com/app...', 'info');
+});
 
 startBtn.addEventListener('click', async () => {
   const systemPrompt = systemPromptEl.value.trim();
@@ -270,6 +333,8 @@ startBtn.addEventListener('click', async () => {
     return;
   }
 
+  const newChat = newChatToggle.checked;
+
   log(`Starting ${prompts.length} prompt(s)...`, 'running');
   setButtons('running');
   setStatus('Starting...', 'running');
@@ -279,10 +344,12 @@ startBtn.addEventListener('click', async () => {
     systemPrompt,
     prompts,
     currentIndex: 0,
+    totalPrompts: prompts.length,
     state: 'running',
+    newChat,
   });
 
-  const response = await sendMessageToContentScript('start', { systemPrompt, prompts });
+  const response = await sendMessageToContentScript('start', { systemPrompt, prompts, newChat });
   if (!response) {
     setButtons('idle');
     setStatus('Failed to start', 'error');
@@ -291,8 +358,9 @@ startBtn.addEventListener('click', async () => {
 });
 
 pauseBtn.addEventListener('click', async () => {
-  const data = await chrome.storage.local.get('state');
-  const state = data.state || 'idle';
+  const response = await sendMessageToContentScript('status');
+  const state = response?.status || 'idle';
+
   if (state === 'paused') {
     log('Resuming...', 'running');
     setStatus('Resuming...', 'running');
@@ -330,10 +398,12 @@ chrome.runtime.onMessage.addListener((message) => {
     setStatus('Complete!', 'complete');
     setButtons('idle');
     log('All prompts completed!', 'success');
+    chrome.storage.local.set({ state: 'idle' });
   } else if (message.type === 'error') {
     setStatus(`Error: ${message.error}`, 'error');
     setButtons('idle');
     log(`Error: ${message.error}`, 'error');
+    chrome.storage.local.set({ state: 'idle' });
   } else if (message.type === 'prompt_done') {
     const { currentIndex, total } = message;
     log(`Prompt ${currentIndex}/${total} done`, 'success');
@@ -341,6 +411,7 @@ chrome.runtime.onMessage.addListener((message) => {
     setStatus('Stopped', 'error');
     setButtons('idle');
     log('Stopped', 'warning');
+    chrome.storage.local.set({ state: 'idle' });
   } else if (message.type === 'waiting') {
     setStatus('Waiting for Gemini...', 'running');
     log('Waiting for Gemini response...', 'info');
@@ -357,25 +428,54 @@ chrome.runtime.onMessage.addListener((message) => {
   }
 });
 
-async function loadSavedSettings() {
-  await loadPrompts();
-  const data = await chrome.storage.local.get(['systemPrompt', 'state', 'currentIndex', 'totalPrompts']);
-  if (data.systemPrompt) systemPromptEl.value = data.systemPrompt;
+async function syncStateFromContentScript() {
+  const data = await chrome.storage.local.get([
+    'state', 'currentIndex', 'totalPrompts', 'statusText', 'statusState'
+  ]);
 
-  const state = data.state || 'idle';
-  if (state === 'running') {
-    setButtons('running');
-    setStatus('Running...', 'running');
-    updateProgress(data.currentIndex || 0, data.totalPrompts || prompts.length);
-  } else if (state === 'paused') {
-    setButtons('paused');
-    setStatus('Paused', 'paused');
-    updateProgress(data.currentIndex || 0, data.totalPrompts || prompts.length);
+  const response = await sendMessageToContentScript('status');
+
+  if (response) {
+    const { status, currentIndex: ci, total } = response;
+    if (status === 'running') {
+      setButtons('running');
+      setStatus('Running...', 'running');
+      updateProgress(ci + 1, total || data.totalPrompts || prompts.length);
+    } else if (status === 'paused') {
+      setButtons('paused');
+      setStatus('Paused', 'paused');
+      updateProgress(ci + 1, total || data.totalPrompts || prompts.length);
+    } else {
+      setStatus('Ready', 'ready');
+      setButtons('idle');
+      updateProgress(0, 0);
+    }
   } else {
-    setStatus('Ready', 'ready');
-    setButtons('idle');
+    const state = data.state || 'idle';
+    if (state === 'running') {
+      setButtons('running');
+      setStatus(data.statusText || 'Running...', data.statusState || 'running');
+      updateProgress((data.currentIndex || 0) + 1, data.totalPrompts || prompts.length);
+    } else if (state === 'paused') {
+      setButtons('paused');
+      setStatus(data.statusText || 'Paused', data.statusState || 'paused');
+      updateProgress((data.currentIndex || 0) + 1, data.totalPrompts || prompts.length);
+    } else {
+      setStatus('Ready', 'ready');
+      setButtons('idle');
+      updateProgress(0, 0);
+    }
   }
 }
 
+async function loadSavedSettings() {
+  await loadPrompts();
+  const data = await chrome.storage.local.get(['systemPrompt', 'newChat']);
+  if (data.systemPrompt) systemPromptEl.value = data.systemPrompt;
+  if (data.newChat !== undefined) newChatToggle.checked = data.newChat;
+
+  restoreLogs();
+  await syncStateFromContentScript();
+}
+
 loadSavedSettings();
-log('Ready. Open gemini.google.com/app and add prompts.', 'info');
