@@ -18,6 +18,8 @@ A highly specialized, multi-step pipeline that builds a script from a single Sto
 3. **Script Writer:** Loops through all episodes in Column B. Saves the scripts sequentially to `C1`, `C2`, etc.
 4. **Scene Details:** Loops through all scripts in Column C. Saves the scene details sequentially to `D1`, `D2`, etc.
 
+*Tip: Ensure your prompts instruct the AI to use numbered headings (e.g., "Episode 1:", "Scene 1:") so the extension can accurately identify and split the blocks.*
+
 **Pro Execution Modes:**
 - **Automatic:** Runs the entire 4-step pipeline from start to finish seamlessly.
 - **Manual:** Lets you execute individual steps. The extension will read the needed precursor data directly from your Google Sheet and run only that step!

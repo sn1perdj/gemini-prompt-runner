@@ -76,6 +76,7 @@ let proState = {
   currentEpisodeIndex: 0,
   scriptWriterResponses: [],
   currentSceneIndex: 0,
+  globalSceneOutputIndex: 0
 };
 
 let prompts = [];
@@ -546,16 +547,18 @@ chrome.runtime.onMessage.addListener((message) => {
 
     const webhookUrl = webhookUrlEl.value.trim();
     if (webhookUrl && webhookUrl.startsWith('https://script.google.com')) {
-      fetch(webhookUrl, {
-        method: 'POST',
-        body: JSON.stringify({
-          mode: 'pro',
-          column: meta.col,
-          row: meta.row,
-          response: response || ''
-        })
-      }).then(() => log(`Saved to ${meta.col}${meta.row}`, 'success'))
-        .catch(err => log(`Error saving to Sheet: ${err.message}`, 'error'));
+      if (stepName !== 'story_architect' && stepName !== 'scene_details') {
+        fetch(webhookUrl, {
+          method: 'POST',
+          body: JSON.stringify({
+            mode: 'pro',
+            column: meta.col,
+            row: meta.row,
+            response: response || ''
+          })
+        }).then(() => log(`Saved to ${meta.col}${meta.row}`, 'success'))
+          .catch(err => log(`Error saving to Sheet: ${err.message}`, 'error'));
+      }
     }
 
     if (!proState.active) return;
@@ -579,33 +582,60 @@ chrome.runtime.onMessage.addListener((message) => {
         meta: { row: 1, col: 'B' }
       });
     } else if (stepName === 'story_architect') {
-      const episodes = (response || '').split(/(?:^|\n)(?=#?\s*(?:Episode|EPISODE)\s+\d+[:\-]?\s*)/i).map(e => e.trim()).filter(e => e.length > 0);
+      const episodes = (response || '').split(/(?:^|\n)(?=[\s\*\-\#\[\]]*Episode\s*\d+)/i).map(e => e.trim()).filter(e => e.length > 0);
       proState.episodes = episodes;
       log(`Found ${episodes.length} episodes.`, 'info');
       
-      if (webhookUrl && webhookUrl.startsWith('https://script.google.com')) {
-        episodes.forEach((ep, idx) => {
-          // Overwrite B1 with Episode 1 specifically, and B2+ with subsequent episodes
-          fetch(webhookUrl, {
-            method: 'POST',
-            body: JSON.stringify({ mode: 'pro', column: 'B', row: idx + 1, response: ep })
-          });
-        });
-      }
+      (async () => {
+        if (webhookUrl && webhookUrl.startsWith('https://script.google.com')) {
+          for (let idx = 0; idx < episodes.length; idx++) {
+            const ep = episodes[idx];
+            try {
+              await fetch(webhookUrl, {
+                method: 'POST',
+                body: JSON.stringify({ mode: 'pro', column: 'B', row: idx + 1, response: ep })
+              });
+              log(`Saved Episode to B${idx + 1}`, 'success');
+            } catch (err) {
+              log(`Error saving to B${idx + 1}: ${err.message}`, 'error');
+            }
+          }
+        }
+        proState.step = 'script_writer';
+        proState.currentEpisodeIndex = 0;
+        saveProState();
+        runNextScriptWriter();
+      })();
 
-      proState.step = 'script_writer';
-      proState.currentEpisodeIndex = 0;
-      saveProState();
-      runNextScriptWriter();
     } else if (stepName === 'script_writer') {
       proState.scriptWriterResponses.push(response);
       proState.currentEpisodeIndex++;
       saveProState();
       runNextScriptWriter();
     } else if (stepName === 'scene_details') {
-      proState.currentSceneIndex++;
-      saveProState();
-      runNextSceneDetails();
+      const scenes = (response || '').split(/(?:^|\n)(?=[\s\*\-\#\[\]]*Scene\s*\d+)/i).map(s => s.trim()).filter(s => s.length > 0);
+      log(`Found ${scenes.length} scenes.`, 'info');
+
+      (async () => {
+        if (webhookUrl && webhookUrl.startsWith('https://script.google.com')) {
+          for (const sc of scenes) {
+            proState.globalSceneOutputIndex = (proState.globalSceneOutputIndex || 0) + 1;
+            const row = proState.globalSceneOutputIndex;
+            try {
+              await fetch(webhookUrl, {
+                method: 'POST',
+                body: JSON.stringify({ mode: 'pro', column: 'D', row: row, response: sc })
+              });
+              log(`Saved to D${row}`, 'success');
+            } catch (err) {
+              log(`Error saving to D${row}: ${err.message}`, 'error');
+            }
+          }
+        }
+        proState.currentSceneIndex++;
+        saveProState();
+        runNextSceneDetails();
+      })();
     }
   }
 });
@@ -753,6 +783,7 @@ if (startProBtn) {
       currentEpisodeIndex: 0,
       scriptWriterResponses: [],
       currentSceneIndex: 0,
+      globalSceneOutputIndex: 0
     };
     chrome.storage.local.set({ proState });
     updateProButtons();
@@ -818,7 +849,8 @@ if (playWriterBtn) {
 
     proState = {
       active: true, step: 'script_writer', episodes: data,
-      currentEpisodeIndex: 0, scriptWriterResponses: [], currentSceneIndex: 0
+      currentEpisodeIndex: 0, scriptWriterResponses: [], currentSceneIndex: 0,
+      globalSceneOutputIndex: 0
     };
     saveProState();
     log(`Manual Start: Script Writer with ${data.length} episodes...`, 'running');
@@ -836,7 +868,8 @@ if (playSceneBtn) {
 
     proState = {
       active: true, step: 'scene_details', episodes: [],
-      currentEpisodeIndex: 0, scriptWriterResponses: data, currentSceneIndex: 0
+      currentEpisodeIndex: 0, scriptWriterResponses: data, currentSceneIndex: 0,
+      globalSceneOutputIndex: 0
     };
     saveProState();
     log(`Manual Start: Scene Details with ${data.length} scenes...`, 'running');
