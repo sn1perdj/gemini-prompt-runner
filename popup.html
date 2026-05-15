@@ -78,7 +78,26 @@
           </svg>
           Clear All
         </button>
+        <button class="btn btn-primary" id="downloadResponsesBtn" style="margin-left: auto; display: flex; align-items: center; gap: 4px; padding: 6px 12px; font-size: 12px; border-radius: 6px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+          Download Responses
+        </button>
       </div>
+    </div>
+
+    <div class="form-group" style="margin-top: 12px; margin-bottom: 0;">
+      <label for="webhookUrl" style="display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; color: #475569; margin-bottom: 6px;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+          <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+        </svg>
+        Google Sheets Webhook URL
+      </label>
+      <input type="text" id="webhookUrl" placeholder="https://script.google.com/macros/s/.../exec" style="width: 100%; padding: 8px 12px; border: 1.5px solid #E2E8F0; border-radius: 8px; font-size: 13px; font-family: inherit; box-sizing: border-box; transition: all 0.2s; background-color: #F8FAFC;">
     </div>
 
     <div class="option-row">

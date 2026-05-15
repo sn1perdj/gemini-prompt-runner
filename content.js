@@ -157,6 +157,15 @@
     return false;
   }
 
+  function getLastResponseText() {
+    const responseContainers = document.querySelectorAll('message-content, .model-response-text, [data-message-author-role="model"], .response-container-content, .content-container');
+    if (responseContainers.length > 0) {
+      const lastContainer = responseContainers[responseContainers.length - 1];
+      return lastContainer.innerText || lastContainer.textContent || '';
+    }
+    return '';
+  }
+
   async function enterText(text) {
     const input = findInputArea();
     if (!input) return false;
@@ -394,9 +403,12 @@
       return false;
     }
 
+    const responseText = getLastResponseText();
+
     sendProgress('prompt_done', {
       currentIndex: index + 1,
       total: prompts.length,
+      response: responseText
     });
 
     return true;

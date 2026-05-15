@@ -19,6 +19,8 @@ const logOutput = document.getElementById('logOutput');
 const geminiWarning = document.getElementById('geminiWarning');
 const openGeminiBtn = document.getElementById('openGeminiBtn');
 const newChatToggle = document.getElementById('newChatToggle');
+const webhookUrlEl = document.getElementById('webhookUrl');
+const downloadResponsesBtn = document.getElementById('downloadResponsesBtn');
 
 let prompts = [];
 const MAX_LOG_ENTRIES = 200;
@@ -343,6 +345,7 @@ startBtn.addEventListener('click', async () => {
   await chrome.storage.local.set({
     systemPrompt,
     prompts,
+    responses: [],
     currentIndex: 0,
     totalPrompts: prompts.length,
     state: 'running',
@@ -405,8 +408,30 @@ chrome.runtime.onMessage.addListener((message) => {
     log(`Error: ${message.error}`, 'error');
     chrome.storage.local.set({ state: 'idle' });
   } else if (message.type === 'prompt_done') {
-    const { currentIndex, total } = message;
+    const { currentIndex, total, response } = message;
     log(`Prompt ${currentIndex}/${total} done`, 'success');
+    
+    chrome.storage.local.get(['responses', 'webhookUrl', 'prompts'], (data) => {
+      const responses = data.responses || [];
+      responses[currentIndex - 1] = response || '';
+      chrome.storage.local.set({ responses });
+
+      const webhookUrl = data.webhookUrl;
+      if (webhookUrl && webhookUrl.startsWith('https://script.google.com')) {
+        log(`Sending response ${currentIndex} to Sheets...`, 'info');
+        fetch(webhookUrl, {
+          method: 'POST',
+          body: JSON.stringify({
+            prompt: data.prompts[currentIndex - 1],
+            response: response || ''
+          })
+        }).then(() => {
+          log(`Response ${currentIndex} saved to Sheets`, 'success');
+        }).catch((err) => {
+          log(`Error saving to Sheets: ${err.message}`, 'error');
+        });
+      }
+    });
   } else if (message.type === 'stopped') {
     setStatus('Stopped', 'error');
     setButtons('idle');
@@ -470,12 +495,51 @@ async function syncStateFromContentScript() {
 
 async function loadSavedSettings() {
   await loadPrompts();
-  const data = await chrome.storage.local.get(['systemPrompt', 'newChat']);
+  const data = await chrome.storage.local.get(['systemPrompt', 'newChat', 'webhookUrl']);
   if (data.systemPrompt) systemPromptEl.value = data.systemPrompt;
   if (data.newChat !== undefined) newChatToggle.checked = data.newChat;
+  if (data.webhookUrl && webhookUrlEl) webhookUrlEl.value = data.webhookUrl;
+
+  if (webhookUrlEl) {
+    webhookUrlEl.addEventListener('change', () => {
+      chrome.storage.local.set({ webhookUrl: webhookUrlEl.value.trim() });
+    });
+  }
 
   restoreLogs();
   await syncStateFromContentScript();
 }
 
 loadSavedSettings();
+
+if (downloadResponsesBtn) {
+  downloadResponsesBtn.addEventListener('click', () => {
+    chrome.storage.local.get(['responses', 'prompts'], (data) => {
+      const responses = data.responses || [];
+      const savedPrompts = data.prompts || prompts;
+      
+      if (responses.length === 0 || responses.every(r => !r)) {
+        log('No responses to download yet', 'warning');
+        return;
+      }
+      
+      let content = '';
+      for (let i = 0; i < savedPrompts.length; i++) {
+        content += `--- PROMPT ${i + 1} ---\n`;
+        content += `${savedPrompts[i]}\n\n`;
+        content += `--- RESPONSE ${i + 1} ---\n`;
+        content += `${responses[i] || 'No response captured'}\n\n`;
+        content += `=========================================\n\n`;
+      }
+      
+      const blob = new Blob([content], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `gemini_responses_${new Date().toISOString().replace(/[:.]/g, '-')}.txt`;
+      a.click();
+      URL.revokeObjectURL(url);
+      log('Responses downloaded', 'success');
+    });
+  });
+}
