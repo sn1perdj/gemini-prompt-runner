@@ -708,3 +708,44 @@ textarea::-webkit-scrollbar-thumb {
 .btn-open:hover {
   background: #4338CA;
 }
+
+.btn-download {
+  background: #10B981;
+  color: #FFFFFF;
+  border: none;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  transition: all 0.15s ease;
+  margin-left: auto;
+}
+
+.btn-download:hover {
+  background: #059669;
+  transform: translateY(-1px);
+}
+
+.webhook-input {
+  width: 100%;
+  background: #FFFFFF;
+  border: 1.5px solid #E2E8F0;
+  border-radius: 10px;
+  color: #1E293B;
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 10px 12px;
+  font-family: inherit;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  box-sizing: border-box;
+}
+
+.webhook-input:focus {
+  outline: none;
+  border-color: #818CF8;
+  box-shadow: 0 0 0 3px rgba(79,70,229,0.1);
+}
