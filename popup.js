@@ -42,6 +42,12 @@ const playArchitectBtn = document.getElementById('playArchitect');
 const playWriterBtn = document.getElementById('playWriter');
 const playSceneBtn = document.getElementById('playScene');
 
+// Extra tab elements
+const extraCharacterPromptEl = document.getElementById('extraCharacterPrompt');
+const extraLocationPromptEl = document.getElementById('extraLocationPrompt');
+const playExtraCharacterBtn = document.getElementById('playExtraCharacter');
+const playExtraLocationBtn = document.getElementById('playExtraLocation');
+
 const stepPlayBtns = [playOutlinerBtn, playArchitectBtn, playWriterBtn, playSceneBtn];
 
 Array.from(modeRadios).forEach(radio => {
@@ -636,6 +642,54 @@ chrome.runtime.onMessage.addListener((message) => {
         saveProState();
         runNextSceneDetails();
       })();
+    } else if (stepName === 'extra_character') {
+      let items = (response || '').split(/(?:^|\n)(?=[\s\*\-\#\[\]]*(?:Character|Location)\s*\d*|(?:\d+\.))/i).map(s => s.trim()).filter(s => s.length > 0);
+      if (items.length <= 1) {
+        items = (response || '').split(/\n\s*\n/).map(s => s.trim()).filter(s => s.length > 0);
+      }
+      log(`Found ${items.length} character details.`, 'info');
+
+      (async () => {
+        if (webhookUrl && webhookUrl.startsWith('https://script.google.com')) {
+          for (let i = 0; i < items.length; i++) {
+            try {
+              await fetch(webhookUrl, {
+                method: 'POST',
+                body: JSON.stringify({ mode: 'pro', column: 'E', row: i + 1, response: items[i] })
+              });
+              log(`Saved to E${i + 1}`, 'success');
+            } catch (err) {
+              log(`Error saving to E${i + 1}: ${err.message}`, 'error');
+            }
+          }
+        }
+        proState.active = false;
+        saveProState();
+      })();
+    } else if (stepName === 'extra_location') {
+      let items = (response || '').split(/(?:^|\n)(?=[\s\*\-\#\[\]]*(?:Character|Location)\s*\d*|(?:\d+\.))/i).map(s => s.trim()).filter(s => s.length > 0);
+      if (items.length <= 1) {
+        items = (response || '').split(/\n\s*\n/).map(s => s.trim()).filter(s => s.length > 0);
+      }
+      log(`Found ${items.length} location details.`, 'info');
+
+      (async () => {
+        if (webhookUrl && webhookUrl.startsWith('https://script.google.com')) {
+          for (let i = 0; i < items.length; i++) {
+            try {
+              await fetch(webhookUrl, {
+                method: 'POST',
+                body: JSON.stringify({ mode: 'pro', column: 'F', row: i + 1, response: items[i] })
+              });
+              log(`Saved to F${i + 1}`, 'success');
+            } catch (err) {
+              log(`Error saving to F${i + 1}: ${err.message}`, 'error');
+            }
+          }
+        }
+        proState.active = false;
+        saveProState();
+      })();
     }
   }
 });
@@ -684,7 +738,8 @@ async function loadSavedSettings() {
   await loadPrompts();
   const data = await chrome.storage.local.get([
     'systemPrompt', 'newChat', 'webhookUrl', 
-    'proStoryIdea', 'proScriptOutliner', 'proStoryArchitect', 'proScriptWriter', 'proSceneDetails', 'proState'
+    'proStoryIdea', 'proScriptOutliner', 'proStoryArchitect', 'proScriptWriter', 'proSceneDetails', 'proState',
+    'extraCharacterPrompt', 'extraLocationPrompt'
   ]);
   
   if (data.systemPrompt) systemPromptEl.value = data.systemPrompt;
@@ -698,13 +753,16 @@ async function loadSavedSettings() {
   if (data.proSceneDetails && proSceneDetailsEl) proSceneDetailsEl.value = data.proSceneDetails;
   if (data.proState) proState = data.proState;
 
+  if (data.extraCharacterPrompt && extraCharacterPromptEl) extraCharacterPromptEl.value = data.extraCharacterPrompt;
+  if (data.extraLocationPrompt && extraLocationPromptEl) extraLocationPromptEl.value = data.extraLocationPrompt;
+
   if (webhookUrlEl) {
     webhookUrlEl.addEventListener('change', () => {
       chrome.storage.local.set({ webhookUrl: webhookUrlEl.value.trim() });
     });
   }
 
-  [proStoryIdeaEl, proScriptOutlinerEl, proStoryArchitectEl, proScriptWriterEl, proSceneDetailsEl].forEach(el => {
+  [proStoryIdeaEl, proScriptOutlinerEl, proStoryArchitectEl, proScriptWriterEl, proSceneDetailsEl, extraCharacterPromptEl, extraLocationPromptEl].forEach(el => {
     if (el) {
       el.addEventListener('change', () => {
         chrome.storage.local.set({
@@ -712,7 +770,9 @@ async function loadSavedSettings() {
           proScriptOutliner: proScriptOutlinerEl.value.trim(),
           proStoryArchitect: proStoryArchitectEl.value.trim(),
           proScriptWriter: proScriptWriterEl.value.trim(),
-          proSceneDetails: proSceneDetailsEl.value.trim()
+          proSceneDetails: proSceneDetailsEl.value.trim(),
+          extraCharacterPrompt: extraCharacterPromptEl.value.trim(),
+          extraLocationPrompt: extraLocationPromptEl.value.trim()
         });
       });
     }
@@ -938,5 +998,57 @@ function runNextSceneDetails() {
     stepName: 'scene_details',
     isNewChat: newChatToggle.checked,
     meta: { row: idx + 1, col: 'D', sceneIndex: idx }
+  });
+}
+
+if (playExtraCharacterBtn) {
+  playExtraCharacterBtn.addEventListener('click', async () => {
+    let data = await fetchColumnFromSheet('D');
+    if (!data || data.length === 0) return log('No data found in Column D', 'error');
+    
+    data = data.filter(d => d && d.trim().length > 0);
+    if (data.length === 0) return log('No scene details found in Column D', 'error');
+    
+    const combinedData = data.join('\n\n');
+    const prompt = extraCharacterPromptEl.value.trim();
+    if (!prompt) return log('Character Details prompt missing.', 'error');
+    
+    const fullPrompt = `${prompt}\n\n${combinedData}`;
+    
+    proState = {
+      active: true, step: 'extra_character'
+    };
+    saveProState();
+    log(`Running Character Details Gen...`, 'running');
+    sendMessageToContentScript('run_single', {
+      prompt: fullPrompt, stepName: 'extra_character',
+      isNewChat: newChatToggle.checked, meta: { col: 'E' }
+    });
+  });
+}
+
+if (playExtraLocationBtn) {
+  playExtraLocationBtn.addEventListener('click', async () => {
+    let data = await fetchColumnFromSheet('D');
+    if (!data || data.length === 0) return log('No data found in Column D', 'error');
+    
+    data = data.filter(d => d && d.trim().length > 0);
+    if (data.length === 0) return log('No scene details found in Column D', 'error');
+    
+    const combinedData = data.join('\n\n');
+    const prompt = extraLocationPromptEl.value.trim();
+    if (!prompt) return log('Location Details prompt missing.', 'error');
+    
+    const fullPrompt = `${prompt}\n\n${combinedData}`;
+    
+    proState = {
+      active: true, step: 'extra_location'
+    };
+    saveProState();
+    log(`Running Location Details Gen...`, 'running');
+    sendMessageToContentScript('run_single', {
+      prompt: fullPrompt, stepName: 'extra_location',
+      isNewChat: newChatToggle.checked, meta: { col: 'F' }
+    });
   });
 }

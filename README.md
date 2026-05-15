@@ -2,7 +2,7 @@
 
 A powerful Chrome extension that automates sending multiple prompts sequentially to Google Gemini, capturing the AI's responses, and saving them either locally or directly into a Google Spreadsheet.
 
-## Two Modes: Lite & Pro
+## Three Modes: Lite, Pro & Extra
 
 ### 1. Lite Mode
 The standard runner. It sequentially executes a list of custom prompts inside Google Gemini.
@@ -23,6 +23,11 @@ A highly specialized, multi-step pipeline that builds a script from a single Sto
 **Pro Execution Modes:**
 - **Automatic:** Runs the entire 4-step pipeline from start to finish seamlessly.
 - **Manual:** Lets you execute individual steps. The extension will read the needed precursor data directly from your Google Sheet and run only that step!
+
+### 3. Extra Mode (Character & Location Details)
+An extension of the Pro Pipeline that generates character and location details based on your scene outputs.
+- **Character Details Gen:** Reads all scene details from Column D, merges them into a single prompt, and generates a list of characters. The extension then splits the response and saves each character into its own row in **Column E**.
+- **Location Details Gen:** Reads all scene details from Column D, merges them into a single prompt, and generates a list of locations. The extension then splits the response and saves each location into its own row in **Column F**.
 
 ## Installation
 
