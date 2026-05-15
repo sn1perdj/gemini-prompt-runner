@@ -21,9 +21,40 @@ const openGeminiBtn = document.getElementById('openGeminiBtn');
 const newChatToggle = document.getElementById('newChatToggle');
 const webhookUrlEl = document.getElementById('webhookUrl');
 const downloadResponsesBtn = document.getElementById('downloadResponsesBtn');
+const tabBtns = document.querySelectorAll('.tab-btn');
+const tabContents = document.querySelectorAll('.tab-content');
+
+// Pro mode elements
+const proStoryIdeaEl = document.getElementById('proStoryIdea');
+const proScriptOutlinerEl = document.getElementById('proScriptOutliner');
+const proStoryArchitectEl = document.getElementById('proStoryArchitect');
+const proScriptWriterEl = document.getElementById('proScriptWriter');
+const proSceneDetailsEl = document.getElementById('proSceneDetails');
+const startProBtn = document.getElementById('startProBtn');
+const stopProBtn = document.getElementById('stopProBtn');
+
+let proState = {
+  active: false,
+  step: '',
+  episodes: [],
+  currentEpisodeIndex: 0,
+  scriptWriterResponses: [],
+  currentSceneIndex: 0,
+};
 
 let prompts = [];
 const MAX_LOG_ENTRIES = 200;
+
+tabBtns.forEach(btn => {
+  btn.addEventListener('click', () => {
+    tabBtns.forEach(b => b.classList.remove('active'));
+    tabContents.forEach(c => c.classList.remove('active'));
+    
+    btn.classList.add('active');
+    const tabId = btn.getAttribute('data-tab');
+    document.getElementById(`${tabId}-tab`).classList.add('active');
+  });
+});
 
 function log(message, type = 'info') {
   const now = new Date();
@@ -450,6 +481,86 @@ chrome.runtime.onMessage.addListener((message) => {
     setStatus('Resuming...', 'running');
     setButtons('running');
     log('Resumed', 'running');
+  } else if (message.type === 'pro_progress') {
+    setStatus(`Pro: ${message.stepName}`, 'running');
+    log(`Pro [${message.stepName}]: ${message.detail}`, 'info');
+  } else if (message.type === 'pro_error') {
+    setStatus(`Pro Error: ${message.error}`, 'error');
+    log(`Pro Error: ${message.error}`, 'error');
+    proState.active = false;
+    saveProState();
+  } else if (message.type === 'pro_stopped') {
+    setStatus('Pro Stopped', 'error');
+    log('Pro Pipeline Stopped', 'warning');
+    proState.active = false;
+    saveProState();
+  } else if (message.type === 'pro_prompt_done') {
+    const { stepName, response, meta } = message;
+    log(`Pro Step '${stepName}' done.`, 'success');
+
+    const webhookUrl = webhookUrlEl.value.trim();
+    if (webhookUrl && webhookUrl.startsWith('https://script.google.com')) {
+      fetch(webhookUrl, {
+        method: 'POST',
+        body: JSON.stringify({
+          mode: 'pro',
+          column: meta.col,
+          row: meta.row,
+          response: response || ''
+        })
+      }).then(() => log(`Saved to ${meta.col}${meta.row}`, 'success'))
+        .catch(err => log(`Error saving to Sheet: ${err.message}`, 'error'));
+    }
+
+    if (!proState.active) return;
+
+    if (stepName === 'script_outliner') {
+      const architectPrompt = proStoryArchitectEl.value.trim();
+      if (!architectPrompt) {
+        log('Story Architect prompt missing.', 'warning');
+        proState.active = false;
+        saveProState();
+        return;
+      }
+      proState.step = 'story_architect';
+      saveProState();
+      const fullPrompt = `${architectPrompt}\n\n${response}`;
+      log('Running Story Architect...', 'running');
+      sendMessageToContentScript('run_single', {
+        prompt: fullPrompt,
+        stepName: 'story_architect',
+        isNewChat: newChatToggle.checked,
+        meta: { row: 1, col: 'B' }
+      });
+    } else if (stepName === 'story_architect') {
+      const episodes = (response || '').split(/(?:^|\n)(?=#?\s*(?:Episode|EPISODE)\s+\d+[:\-]?\s*)/i).map(e => e.trim()).filter(e => e.length > 0);
+      proState.episodes = episodes;
+      log(`Found ${episodes.length} episodes.`, 'info');
+      
+      if (webhookUrl && webhookUrl.startsWith('https://script.google.com')) {
+        episodes.forEach((ep, idx) => {
+          // Overwrite B1 with Episode 1 specifically, and B2+ with subsequent episodes
+          fetch(webhookUrl, {
+            method: 'POST',
+            body: JSON.stringify({ mode: 'pro', column: 'B', row: idx + 1, response: ep })
+          });
+        });
+      }
+
+      proState.step = 'script_writer';
+      proState.currentEpisodeIndex = 0;
+      saveProState();
+      runNextScriptWriter();
+    } else if (stepName === 'script_writer') {
+      proState.scriptWriterResponses.push(response);
+      proState.currentEpisodeIndex++;
+      saveProState();
+      runNextScriptWriter();
+    } else if (stepName === 'scene_details') {
+      proState.currentSceneIndex++;
+      saveProState();
+      runNextSceneDetails();
+    }
   }
 });
 
@@ -495,16 +606,41 @@ async function syncStateFromContentScript() {
 
 async function loadSavedSettings() {
   await loadPrompts();
-  const data = await chrome.storage.local.get(['systemPrompt', 'newChat', 'webhookUrl']);
+  const data = await chrome.storage.local.get([
+    'systemPrompt', 'newChat', 'webhookUrl', 
+    'proStoryIdea', 'proScriptOutliner', 'proStoryArchitect', 'proScriptWriter', 'proSceneDetails', 'proState'
+  ]);
+  
   if (data.systemPrompt) systemPromptEl.value = data.systemPrompt;
   if (data.newChat !== undefined) newChatToggle.checked = data.newChat;
   if (data.webhookUrl && webhookUrlEl) webhookUrlEl.value = data.webhookUrl;
+  
+  if (data.proStoryIdea && proStoryIdeaEl) proStoryIdeaEl.value = data.proStoryIdea;
+  if (data.proScriptOutliner && proScriptOutlinerEl) proScriptOutlinerEl.value = data.proScriptOutliner;
+  if (data.proStoryArchitect && proStoryArchitectEl) proStoryArchitectEl.value = data.proStoryArchitect;
+  if (data.proScriptWriter && proScriptWriterEl) proScriptWriterEl.value = data.proScriptWriter;
+  if (data.proSceneDetails && proSceneDetailsEl) proSceneDetailsEl.value = data.proSceneDetails;
+  if (data.proState) proState = data.proState;
 
   if (webhookUrlEl) {
     webhookUrlEl.addEventListener('change', () => {
       chrome.storage.local.set({ webhookUrl: webhookUrlEl.value.trim() });
     });
   }
+
+  [proStoryIdeaEl, proScriptOutlinerEl, proStoryArchitectEl, proScriptWriterEl, proSceneDetailsEl].forEach(el => {
+    if (el) {
+      el.addEventListener('change', () => {
+        chrome.storage.local.set({
+          proStoryIdea: proStoryIdeaEl.value.trim(),
+          proScriptOutliner: proScriptOutlinerEl.value.trim(),
+          proStoryArchitect: proStoryArchitectEl.value.trim(),
+          proScriptWriter: proScriptWriterEl.value.trim(),
+          proSceneDetails: proSceneDetailsEl.value.trim()
+        });
+      });
+    }
+  });
 
   restoreLogs();
   await syncStateFromContentScript();
@@ -541,5 +677,122 @@ if (downloadResponsesBtn) {
       URL.revokeObjectURL(url);
       log('Responses downloaded', 'success');
     });
+  });
+}
+
+function updateProButtons() {
+  if (startProBtn) startProBtn.disabled = proState.active;
+  if (stopProBtn) stopProBtn.disabled = !proState.active;
+}
+
+if (startProBtn) {
+  startProBtn.addEventListener('click', async () => {
+    const storyIdea = proStoryIdeaEl.value.trim();
+    const scriptOutliner = proScriptOutlinerEl.value.trim();
+    
+    if (!storyIdea || !scriptOutliner) {
+      log('Story Idea and Script Outliner prompt are required.', 'error');
+      return;
+    }
+
+    if (!webhookUrlEl.value.trim().startsWith('https://script.google.com')) {
+      log('Google Sheets Webhook URL is required for Pro mode.', 'error');
+      return;
+    }
+    
+    proState = {
+      active: true,
+      step: 'script_outliner',
+      episodes: [],
+      currentEpisodeIndex: 0,
+      scriptWriterResponses: [],
+      currentSceneIndex: 0,
+    };
+    chrome.storage.local.set({ proState });
+    updateProButtons();
+    
+    const fullPrompt = `${scriptOutliner}\n\n${storyIdea}`;
+    log('Starting Pro Pipeline: Script Outliner...', 'running');
+    
+    await sendMessageToContentScript('run_single', {
+      prompt: fullPrompt,
+      stepName: 'script_outliner',
+      isNewChat: newChatToggle.checked,
+      meta: { row: 1, col: 'A' }
+    });
+  });
+}
+
+if (stopProBtn) {
+  stopProBtn.addEventListener('click', async () => {
+    log('Stopping Pro Pipeline...', 'error');
+    proState.active = false;
+    chrome.storage.local.set({ proState });
+    updateProButtons();
+    await sendMessageToContentScript('stop');
+  });
+}
+
+function saveProState() {
+  chrome.storage.local.set({ proState });
+  updateProButtons();
+}
+
+function runNextScriptWriter() {
+  if (!proState.active) return;
+  const idx = proState.currentEpisodeIndex;
+  if (idx >= proState.episodes.length) {
+    proState.step = 'scene_details';
+    proState.currentSceneIndex = 0;
+    saveProState();
+    runNextSceneDetails();
+    return;
+  }
+  
+  const writerPrompt = proScriptWriterEl.value.trim();
+  if (!writerPrompt) {
+     log('Script Writer prompt missing. Pipeline halted.', 'warning');
+     proState.active = false;
+     saveProState();
+     return;
+  }
+  
+  const epText = proState.episodes[idx];
+  const fullPrompt = `${writerPrompt}\n\n${epText}`;
+  log(`Running Script Writer for Episode ${idx + 1}...`, 'running');
+  sendMessageToContentScript('run_single', {
+    prompt: fullPrompt,
+    stepName: 'script_writer',
+    isNewChat: newChatToggle.checked,
+    meta: { row: idx + 1, col: 'C', episodeIndex: idx }
+  });
+}
+
+function runNextSceneDetails() {
+  if (!proState.active) return;
+  const idx = proState.currentSceneIndex;
+  if (idx >= proState.scriptWriterResponses.length) {
+    log('Pro Pipeline complete!', 'success');
+    proState.active = false;
+    saveProState();
+    return;
+  }
+  
+  const scenePrompt = proSceneDetailsEl.value.trim();
+  if (!scenePrompt) {
+     log('Scene Details prompt missing. Pipeline halted.', 'warning');
+     proState.active = false;
+     saveProState();
+     return;
+  }
+  
+  const writerResponseText = proState.scriptWriterResponses[idx];
+  const fullPrompt = `${scenePrompt}\n\n${writerResponseText}`;
+  log(`Running Scene Details for Episode ${idx + 1}...`, 'running');
+  sendMessageToContentScript('run_single', {
+    prompt: fullPrompt,
+    stepName: 'scene_details',
+    isNewChat: newChatToggle.checked,
+    meta: { row: idx + 1, col: 'D', sceneIndex: idx }
   });
 }

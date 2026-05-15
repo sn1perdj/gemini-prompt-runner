@@ -414,6 +414,69 @@
     return true;
   }
 
+  async function runSinglePipelinePrompt(fullPrompt, stepName, isNewChat, meta) {
+    isRunning = true;
+    isPaused = false;
+    isStopped = false;
+
+    if (!window.location.href.includes('gemini.google.com')) {
+      sendProgress('pro_error', { error: 'Please navigate to gemini.google.com/app first' });
+      isRunning = false;
+      return false;
+    }
+
+    sendProgress('pro_progress', { stepName, detail: 'Starting prompt...' });
+
+    if (isNewChat) {
+      await createNewChat();
+    }
+
+    const input = await ensureInputReady();
+    if (!input) {
+      sendProgress('pro_error', { error: 'Could not find input area. Open gemini.google.com/app' });
+      isRunning = false;
+      return false;
+    }
+
+    sendProgress('pro_progress', { stepName, detail: 'Typing prompt...' });
+
+    await enterText(fullPrompt);
+    await sleep(500);
+
+    const verifyInput = findInputArea();
+    if (!verifyInput || !verifyInput.textContent || verifyInput.textContent.trim().length === 0) {
+      sendProgress('pro_error', { error: 'Failed to enter text. Try clicking the Gemini input area first.' });
+      isRunning = false;
+      return false;
+    }
+
+    sendProgress('pro_progress', { stepName, detail: 'Waiting for Gemini...' });
+
+    const sent = await clickSendButton();
+    if (!sent) {
+      isRunning = false;
+      return false;
+    }
+
+    const completed = await waitForCompletion();
+    if (!completed && isStopped) {
+      sendProgress('pro_stopped', {});
+      isRunning = false;
+      return false;
+    }
+
+    const responseText = getLastResponseText();
+
+    sendProgress('pro_prompt_done', {
+      stepName,
+      response: responseText,
+      meta
+    });
+
+    isRunning = false;
+    return true;
+  }
+
   async function startExecution(sysPrompt, promptList, options) {
     systemPrompt = sysPrompt;
     prompts = promptList;
@@ -532,6 +595,13 @@
       }
 
       startExecution(message.systemPrompt, message.prompts, { newChat: message.newChat });
+      sendResponse({ status: 'started' });
+    } else if (message.action === 'run_single') {
+      if (isRunning) {
+        sendResponse({ status: 'already_running' });
+        return true;
+      }
+      runSinglePipelinePrompt(message.prompt, message.stepName, message.isNewChat, message.meta);
       sendResponse({ status: 'started' });
     } else if (message.action === 'pause') {
       pauseExecution();

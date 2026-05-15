@@ -749,3 +749,43 @@ textarea::-webkit-scrollbar-thumb {
   border-color: #818CF8;
   box-shadow: 0 0 0 3px rgba(79,70,229,0.1);
 }
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  background: #E2E8F0;
+  padding: 4px;
+  border-radius: 10px;
+  margin-bottom: 14px;
+}
+
+.tab-btn {
+  flex: 1;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #64748B;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.tab-btn:hover {
+  color: #1E293B;
+}
+
+.tab-btn.active {
+  background: #FFFFFF;
+  color: #4F46E5;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.tab-content {
+  display: none;
+}
+
+.tab-content.active {
+  display: block;
+}
