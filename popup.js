@@ -21,6 +21,8 @@ const openGeminiBtn = document.getElementById('openGeminiBtn');
 const newChatToggle = document.getElementById('newChatToggle');
 const webhookUrlEl = document.getElementById('webhookUrl');
 const downloadResponsesBtn = document.getElementById('downloadResponsesBtn');
+const settingsBtn = document.getElementById('settingsBtn');
+const settingsPanel = document.getElementById('settingsPanel');
 const tabBtns = document.querySelectorAll('.tab-btn');
 const tabContents = document.querySelectorAll('.tab-content');
 
@@ -32,6 +34,40 @@ const proScriptWriterEl = document.getElementById('proScriptWriter');
 const proSceneDetailsEl = document.getElementById('proSceneDetails');
 const startProBtn = document.getElementById('startProBtn');
 const stopProBtn = document.getElementById('stopProBtn');
+
+// Manual mode elements
+const modeRadios = document.getElementsByName('proMode');
+const playOutlinerBtn = document.getElementById('playOutliner');
+const playArchitectBtn = document.getElementById('playArchitect');
+const playWriterBtn = document.getElementById('playWriter');
+const playSceneBtn = document.getElementById('playScene');
+
+const stepPlayBtns = [playOutlinerBtn, playArchitectBtn, playWriterBtn, playSceneBtn];
+
+Array.from(modeRadios).forEach(radio => {
+  radio.addEventListener('change', (e) => {
+    const isManual = e.target.value === 'manual';
+    stepPlayBtns.forEach(btn => btn.style.display = isManual ? 'flex' : 'none');
+    startProBtn.style.display = isManual ? 'none' : 'flex';
+  });
+});
+
+async function fetchColumnFromSheet(column) {
+  const url = webhookUrlEl.value.trim();
+  if (!url || !url.startsWith('https://script.google.com')) {
+    log('Valid Google Sheets Webhook URL is required.', 'error');
+    return null;
+  }
+  try {
+    log(`Fetching data from Column ${column}...`, 'info');
+    const res = await fetch(`${url}?action=get&column=${column}`);
+    const data = await res.json();
+    return data;
+  } catch (err) {
+    log(`Failed to fetch from sheet: ${err.message}`, 'error');
+    return null;
+  }
+}
 
 let proState = {
   active: false,
@@ -55,6 +91,16 @@ tabBtns.forEach(btn => {
     document.getElementById(`${tabId}-tab`).classList.add('active');
   });
 });
+
+if (settingsBtn && settingsPanel) {
+  settingsBtn.addEventListener('click', () => {
+    if (settingsPanel.style.display === 'none') {
+      settingsPanel.style.display = 'block';
+    } else {
+      settingsPanel.style.display = 'none';
+    }
+  });
+}
 
 function log(message, type = 'info') {
   const now = new Date();
@@ -723,6 +769,12 @@ if (startProBtn) {
   });
 }
 
+if (playOutlinerBtn) {
+  playOutlinerBtn.addEventListener('click', () => {
+    if (startProBtn) startProBtn.click();
+  });
+}
+
 if (stopProBtn) {
   stopProBtn.addEventListener('click', async () => {
     log('Stopping Pro Pipeline...', 'error');
@@ -730,6 +782,65 @@ if (stopProBtn) {
     chrome.storage.local.set({ proState });
     updateProButtons();
     await sendMessageToContentScript('stop');
+  });
+}
+
+if (playArchitectBtn) {
+  playArchitectBtn.addEventListener('click', async () => {
+    const data = await fetchColumnFromSheet('A');
+    if (!data || !data[0]) return log('No data found in Column A for Architect', 'error');
+    
+    proState = {
+      active: true, step: 'story_architect', episodes: [],
+      currentEpisodeIndex: 0, scriptWriterResponses: [], currentSceneIndex: 0
+    };
+    saveProState();
+    
+    const architectPrompt = proStoryArchitectEl.value.trim();
+    if (!architectPrompt) return log('Story Architect prompt missing.', 'error');
+    const fullPrompt = `${architectPrompt}\n\n${data[0]}`;
+    log('Manual Start: Story Architect...', 'running');
+    sendMessageToContentScript('run_single', {
+      prompt: fullPrompt, stepName: 'story_architect',
+      isNewChat: newChatToggle.checked, meta: { row: 1, col: 'B' }
+    });
+  });
+}
+
+if (playWriterBtn) {
+  playWriterBtn.addEventListener('click', async () => {
+    let data = await fetchColumnFromSheet('B');
+    if (!data || data.length === 0) return log('No data found in Column B for Script Writer', 'error');
+    
+    // Filter out empty rows
+    data = data.filter(d => d && d.trim().length > 0);
+    if (data.length === 0) return log('No episodes found in Column B', 'error');
+
+    proState = {
+      active: true, step: 'script_writer', episodes: data,
+      currentEpisodeIndex: 0, scriptWriterResponses: [], currentSceneIndex: 0
+    };
+    saveProState();
+    log(`Manual Start: Script Writer with ${data.length} episodes...`, 'running');
+    runNextScriptWriter();
+  });
+}
+
+if (playSceneBtn) {
+  playSceneBtn.addEventListener('click', async () => {
+    let data = await fetchColumnFromSheet('C');
+    if (!data || data.length === 0) return log('No data found in Column C for Scene Details', 'error');
+    
+    data = data.filter(d => d && d.trim().length > 0);
+    if (data.length === 0) return log('No script outputs found in Column C', 'error');
+
+    proState = {
+      active: true, step: 'scene_details', episodes: [],
+      currentEpisodeIndex: 0, scriptWriterResponses: data, currentSceneIndex: 0
+    };
+    saveProState();
+    log(`Manual Start: Scene Details with ${data.length} scenes...`, 'running');
+    runNextSceneDetails();
   });
 }
 

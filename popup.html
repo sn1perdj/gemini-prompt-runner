@@ -18,6 +18,25 @@
         <h1>Prompt Runner</h1>
         <span class="subtitle">Google Gemini Automation</span>
       </div>
+      <button class="header-settings-btn" id="settingsBtn" title="Settings">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </button>
+    </div>
+
+    <div id="settingsPanel" class="settings-panel" style="display: none;">
+      <div class="form-group" style="margin-top: 0; margin-bottom: 0;">
+        <label for="webhookUrl">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+          </svg>
+          Google Sheets Webhook URL
+        </label>
+        <input type="text" id="webhookUrl" class="webhook-input" placeholder="https://script.google.com/macros/s/.../exec">
+      </div>
     </div>
 
     <div class="status-bar" id="statusBar">
@@ -36,11 +55,11 @@
     </div>
 
     <div class="tabs">
-      <button class="tab-btn active" data-tab="lite">Lite</button>
-      <button class="tab-btn" data-tab="pro">Pro</button>
+      <button class="tab-btn" data-tab="lite">Lite</button>
+      <button class="tab-btn active" data-tab="pro">Pro</button>
     </div>
 
-    <div id="lite-tab" class="tab-content active">
+    <div id="lite-tab" class="tab-content">
       <div class="form-group">
       <label for="systemPrompt">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -95,16 +114,6 @@
       </div>
     </div>
 
-    <div class="form-group" style="margin-top: 12px; margin-bottom: 0;">
-      <label for="webhookUrl">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
-          <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
-        </svg>
-        Google Sheets Webhook URL
-      </label>
-      <input type="text" id="webhookUrl" class="webhook-input" placeholder="https://script.google.com/macros/s/.../exec">
-    </div>
 
     <div class="option-row">
       <label class="toggle-label">
@@ -145,25 +154,57 @@
 
     </div>
 
-    <div id="pro-tab" class="tab-content">
+    <div id="pro-tab" class="tab-content active">
+      <div class="pro-mode-toggle">
+        <span class="mode-label">Mode:</span>
+        <div class="segmented-control">
+          <input type="radio" id="modeAuto" name="proMode" value="auto" checked>
+          <label for="modeAuto">Automatic</label>
+          <input type="radio" id="modeManual" name="proMode" value="manual">
+          <label for="modeManual">Manual</label>
+        </div>
+      </div>
+
       <div class="form-group">
-        <label>Story Idea</label>
+        <div class="label-row">
+          <label>Story Idea</label>
+        </div>
         <textarea id="proStoryIdea" placeholder="Paste your story idea here..." rows="3"></textarea>
       </div>
       <div class="form-group">
-        <label>Script Outliner Prompt</label>
+        <div class="label-row">
+          <label>Script Outliner Prompt</label>
+          <button class="btn-play-step" id="playOutliner" style="display: none;" title="Start from here">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+          </button>
+        </div>
         <textarea id="proScriptOutliner" placeholder="Enter script outliner prompt..." rows="2"></textarea>
       </div>
       <div class="form-group">
-        <label>Story Architect Prompt</label>
+        <div class="label-row">
+          <label>Story Architect Prompt</label>
+          <button class="btn-play-step" id="playArchitect" style="display: none;" title="Start from here">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+          </button>
+        </div>
         <textarea id="proStoryArchitect" placeholder="Enter story architect prompt..." rows="2"></textarea>
       </div>
       <div class="form-group">
-        <label>Script Writer Prompt</label>
+        <div class="label-row">
+          <label>Script Writer Prompt</label>
+          <button class="btn-play-step" id="playWriter" style="display: none;" title="Start from here">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+          </button>
+        </div>
         <textarea id="proScriptWriter" placeholder="Enter script writer prompt..." rows="2"></textarea>
       </div>
       <div class="form-group">
-        <label>Scene Details Prompt</label>
+        <div class="label-row">
+          <label>Scene Details Prompt</label>
+          <button class="btn-play-step" id="playScene" style="display: none;" title="Start from here">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+          </button>
+        </div>
         <textarea id="proSceneDetails" placeholder="Enter scene details prompt..." rows="2"></textarea>
       </div>
       <div class="buttons">
