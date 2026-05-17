@@ -57,7 +57,6 @@
     <div class="tabs">
       <button class="tab-btn" data-tab="lite">Lite</button>
       <button class="tab-btn active" data-tab="pro">Pro</button>
-      <button class="tab-btn" data-tab="extra">Extra</button>
     </div>
 
     <div id="lite-tab" class="tab-content">
@@ -175,39 +174,88 @@
       <div class="form-group">
         <div class="label-row">
           <label>Script Outliner Prompt</label>
-          <button class="btn-play-step" id="playOutliner" style="display: none;" title="Start from here">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-          </button>
+          <div class="action-buttons">
+            <button class="btn-play-step" id="playOutliner" style="display: none;" title="Start from here">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+            </button>
+            <button class="btn-replay-step" id="replayOutliner" style="display: none;" title="Replay only this prompt">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+            </button>
+          </div>
         </div>
         <textarea id="proScriptOutliner" placeholder="Enter script outliner prompt..." rows="2"></textarea>
       </div>
       <div class="form-group">
         <div class="label-row">
           <label>Story Architect Prompt</label>
-          <button class="btn-play-step" id="playArchitect" style="display: none;" title="Start from here">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-          </button>
+          <div class="action-buttons">
+            <button class="btn-play-step" id="playArchitect" style="display: none;" title="Start from here">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+            </button>
+            <button class="btn-replay-step" id="replayArchitect" style="display: none;" title="Replay only this prompt">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+            </button>
+          </div>
         </div>
         <textarea id="proStoryArchitect" placeholder="Enter story architect prompt..." rows="2"></textarea>
       </div>
       <div class="form-group">
         <div class="label-row">
           <label>Script Writer Prompt</label>
-          <button class="btn-play-step" id="playWriter" style="display: none;" title="Start from here">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-          </button>
+          <div class="action-buttons">
+            <button class="btn-play-step" id="playWriter" style="display: none;" title="Start from here">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+            </button>
+            <button class="btn-replay-step" id="replayWriter" style="display: none;" title="Replay only this prompt">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+            </button>
+          </div>
         </div>
         <textarea id="proScriptWriter" placeholder="Enter script writer prompt..." rows="2"></textarea>
       </div>
       <div class="form-group">
         <div class="label-row">
           <label>Scene Details Prompt</label>
-          <button class="btn-play-step" id="playScene" style="display: none;" title="Start from here">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-          </button>
+          <div class="action-buttons">
+            <button class="btn-play-step" id="playScene" style="display: none;" title="Start from here">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+            </button>
+            <button class="btn-replay-step" id="replayScene" style="display: none;" title="Replay only this prompt">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+            </button>
+          </div>
         </div>
         <textarea id="proSceneDetails" placeholder="Enter scene details prompt..." rows="2"></textarea>
       </div>
+      <div class="form-group">
+        <div class="label-row">
+          <label>Character Details gen</label>
+          <div class="action-buttons">
+            <button class="btn-play-step" id="playExtraCharacter" style="display: none;" title="Start from here">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+            </button>
+            <button class="btn-replay-step" id="replayExtraCharacter" style="display: none;" title="Replay only this prompt">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+            </button>
+          </div>
+        </div>
+        <textarea id="extraCharacterPrompt" placeholder="Enter character details prompt..." rows="3"></textarea>
+      </div>
+      <div class="form-group">
+        <div class="label-row">
+          <label>Location Details gen</label>
+          <div class="action-buttons">
+            <button class="btn-play-step" id="playExtraLocation" style="display: none;" title="Start from here">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+            </button>
+            <button class="btn-replay-step" id="replayExtraLocation" style="display: none;" title="Replay only this prompt">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+            </button>
+          </div>
+        </div>
+        <textarea id="extraLocationPrompt" placeholder="Enter location details prompt..." rows="3"></textarea>
+      </div>
+      
       <div class="buttons">
         <button id="startProBtn" class="btn btn-primary">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
@@ -221,27 +269,6 @@
           </svg>
           Stop
         </button>
-      </div>
-    </div>
-
-    <div id="extra-tab" class="tab-content">
-      <div class="form-group">
-        <div class="label-row">
-          <label>Character Details gen</label>
-          <button class="btn-play-step" id="playExtraCharacter" title="Start Character Details">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-          </button>
-        </div>
-        <textarea id="extraCharacterPrompt" placeholder="Enter character details prompt..." rows="3"></textarea>
-      </div>
-      <div class="form-group">
-        <div class="label-row">
-          <label>Location Details gen</label>
-          <button class="btn-play-step" id="playExtraLocation" title="Start Location Details">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-          </button>
-        </div>
-        <textarea id="extraLocationPrompt" placeholder="Enter location details prompt..." rows="3"></textarea>
       </div>
     </div>
 

@@ -41,20 +41,33 @@ const playOutlinerBtn = document.getElementById('playOutliner');
 const playArchitectBtn = document.getElementById('playArchitect');
 const playWriterBtn = document.getElementById('playWriter');
 const playSceneBtn = document.getElementById('playScene');
-
-// Extra tab elements
-const extraCharacterPromptEl = document.getElementById('extraCharacterPrompt');
-const extraLocationPromptEl = document.getElementById('extraLocationPrompt');
 const playExtraCharacterBtn = document.getElementById('playExtraCharacter');
 const playExtraLocationBtn = document.getElementById('playExtraLocation');
 
-const stepPlayBtns = [playOutlinerBtn, playArchitectBtn, playWriterBtn, playSceneBtn];
+const replayOutlinerBtn = document.getElementById('replayOutliner');
+const replayArchitectBtn = document.getElementById('replayArchitect');
+const replayWriterBtn = document.getElementById('replayWriter');
+const replaySceneBtn = document.getElementById('replayScene');
+const replayExtraCharacterBtn = document.getElementById('replayExtraCharacter');
+const replayExtraLocationBtn = document.getElementById('replayExtraLocation');
+
+// Extra tab elements (removed)
+const extraCharacterPromptEl = document.getElementById('extraCharacterPrompt');
+const extraLocationPromptEl = document.getElementById('extraLocationPrompt');
+
+const stepPlayBtns = [
+  playOutlinerBtn, playArchitectBtn, playWriterBtn, playSceneBtn, playExtraCharacterBtn, playExtraLocationBtn
+];
+const stepReplayBtns = [
+  replayOutlinerBtn, replayArchitectBtn, replayWriterBtn, replaySceneBtn, replayExtraCharacterBtn, replayExtraLocationBtn
+];
 
 Array.from(modeRadios).forEach(radio => {
   radio.addEventListener('change', (e) => {
     const isManual = e.target.value === 'manual';
-    stepPlayBtns.forEach(btn => btn.style.display = isManual ? 'flex' : 'none');
-    startProBtn.style.display = isManual ? 'none' : 'flex';
+    stepPlayBtns.forEach(btn => { if (btn) btn.style.display = isManual ? 'flex' : 'none'; });
+    stepReplayBtns.forEach(btn => { if (btn) btn.style.display = isManual ? 'flex' : 'none'; });
+    if (startProBtn) startProBtn.style.display = isManual ? 'none' : 'flex';
   });
 });
 
@@ -74,6 +87,7 @@ async function fetchColumnFromSheet(column) {
     return null;
   }
 }
+
 
 let proState = {
   active: false,
@@ -607,6 +621,12 @@ chrome.runtime.onMessage.addListener((message) => {
             }
           }
         }
+        if (proState.singleStep) {
+          log('Story Architect complete.', 'success');
+          proState.active = false;
+          saveProState();
+          return;
+        }
         proState.step = 'script_writer';
         proState.currentEpisodeIndex = 0;
         saveProState();
@@ -663,8 +683,15 @@ chrome.runtime.onMessage.addListener((message) => {
             }
           }
         }
-        proState.active = false;
+        if (proState.singleStep) {
+          log('Character Details complete.', 'success');
+          proState.active = false;
+          saveProState();
+          return;
+        }
+        proState.step = 'extra_location';
         saveProState();
+        runExtraLocation();
       })();
     } else if (stepName === 'extra_location') {
       let items = (response || '').split(/(?:^|\n)(?=[\s\*\-\#\[\]]*(?:Character|Location)\s*\d*|(?:\d+\.))/i).map(s => s.trim()).filter(s => s.length > 0);
@@ -946,6 +973,12 @@ function runNextScriptWriter() {
   if (!proState.active) return;
   const idx = proState.currentEpisodeIndex;
   if (idx >= proState.episodes.length) {
+    if (proState.singleStep) {
+      log('Script Writer complete.', 'success');
+      proState.active = false;
+      saveProState();
+      return;
+    }
     proState.step = 'scene_details';
     proState.currentSceneIndex = 0;
     saveProState();
@@ -976,9 +1009,15 @@ function runNextSceneDetails() {
   if (!proState.active) return;
   const idx = proState.currentSceneIndex;
   if (idx >= proState.scriptWriterResponses.length) {
-    log('Pro Pipeline complete!', 'success');
-    proState.active = false;
+    if (proState.singleStep) {
+      log('Scene Details complete.', 'success');
+      proState.active = false;
+      saveProState();
+      return;
+    }
+    proState.step = 'extra_character';
     saveProState();
+    runExtraCharacter();
     return;
   }
   
@@ -1001,54 +1040,156 @@ function runNextSceneDetails() {
   });
 }
 
+async function runExtraCharacter() {
+  if (!proState.active) return;
+  let data = await fetchColumnFromSheet('D');
+  if (!data || data.length === 0) return log('No data found in Column D', 'error');
+  
+  data = data.filter(d => d && d.trim().length > 0);
+  if (data.length === 0) return log('No scene details found in Column D', 'error');
+  
+  const combinedData = data.join('\n\n');
+  const prompt = extraCharacterPromptEl.value.trim();
+  if (!prompt) return log('Character Details prompt missing.', 'error');
+  
+  const fullPrompt = `${prompt}\n\n${combinedData}`;
+  log(`Running Character Details Gen...`, 'running');
+  sendMessageToContentScript('run_single', {
+    prompt: fullPrompt, stepName: 'extra_character',
+    isNewChat: newChatToggle.checked, meta: { col: 'E' }
+  });
+}
+
+async function runExtraLocation() {
+  if (!proState.active) return;
+  let data = await fetchColumnFromSheet('D');
+  if (!data || data.length === 0) return log('No data found in Column D', 'error');
+  
+  data = data.filter(d => d && d.trim().length > 0);
+  if (data.length === 0) return log('No scene details found in Column D', 'error');
+  
+  const combinedData = data.join('\n\n');
+  const prompt = extraLocationPromptEl.value.trim();
+  if (!prompt) return log('Location Details prompt missing.', 'error');
+  
+  const fullPrompt = `${prompt}\n\n${combinedData}`;
+  log(`Running Location Details Gen...`, 'running');
+  sendMessageToContentScript('run_single', {
+    prompt: fullPrompt, stepName: 'extra_location',
+    isNewChat: newChatToggle.checked, meta: { col: 'F' }
+  });
+}
+
 if (playExtraCharacterBtn) {
   playExtraCharacterBtn.addEventListener('click', async () => {
-    let data = await fetchColumnFromSheet('D');
-    if (!data || data.length === 0) return log('No data found in Column D', 'error');
-    
-    data = data.filter(d => d && d.trim().length > 0);
-    if (data.length === 0) return log('No scene details found in Column D', 'error');
-    
-    const combinedData = data.join('\n\n');
-    const prompt = extraCharacterPromptEl.value.trim();
-    if (!prompt) return log('Character Details prompt missing.', 'error');
-    
-    const fullPrompt = `${prompt}\n\n${combinedData}`;
-    
-    proState = {
-      active: true, step: 'extra_character'
-    };
+    proState = { active: true, step: 'extra_character', singleStep: false };
     saveProState();
-    log(`Running Character Details Gen...`, 'running');
-    sendMessageToContentScript('run_single', {
-      prompt: fullPrompt, stepName: 'extra_character',
-      isNewChat: newChatToggle.checked, meta: { col: 'E' }
-    });
+    runExtraCharacter();
   });
 }
 
 if (playExtraLocationBtn) {
   playExtraLocationBtn.addEventListener('click', async () => {
-    let data = await fetchColumnFromSheet('D');
-    if (!data || data.length === 0) return log('No data found in Column D', 'error');
-    
-    data = data.filter(d => d && d.trim().length > 0);
-    if (data.length === 0) return log('No scene details found in Column D', 'error');
-    
-    const combinedData = data.join('\n\n');
-    const prompt = extraLocationPromptEl.value.trim();
-    if (!prompt) return log('Location Details prompt missing.', 'error');
-    
-    const fullPrompt = `${prompt}\n\n${combinedData}`;
-    
+    proState = { active: true, step: 'extra_location', singleStep: false };
+    saveProState();
+    runExtraLocation();
+  });
+}
+
+if (replayOutlinerBtn) {
+  replayOutlinerBtn.addEventListener('click', async () => {
     proState = {
-      active: true, step: 'extra_location'
+      active: true, step: 'script_outliner', singleStep: true,
+      episodes: [], currentEpisodeIndex: 0, scriptWriterResponses: [],
+      currentSceneIndex: 0, globalSceneOutputIndex: 0
     };
     saveProState();
-    log(`Running Location Details Gen...`, 'running');
+    
+    const storyIdea = proStoryIdeaEl.value.trim();
+    const scriptOutliner = proScriptOutlinerEl.value.trim();
+    if (!storyIdea || !scriptOutliner) return log('Story Idea and Script Outliner required.', 'error');
+    
+    const fullPrompt = `${scriptOutliner}\n\n${storyIdea}`;
+    log('Replaying Script Outliner...', 'running');
     sendMessageToContentScript('run_single', {
-      prompt: fullPrompt, stepName: 'extra_location',
-      isNewChat: newChatToggle.checked, meta: { col: 'F' }
+      prompt: fullPrompt, stepName: 'script_outliner',
+      isNewChat: newChatToggle.checked, meta: { row: 1, col: 'A' }
     });
+  });
+}
+
+if (replayArchitectBtn) {
+  replayArchitectBtn.addEventListener('click', async () => {
+    const data = await fetchColumnFromSheet('A');
+    if (!data || !data[0]) return log('No data found in Column A for Architect', 'error');
+    
+    proState = {
+      active: true, step: 'story_architect', singleStep: true, episodes: [],
+      currentEpisodeIndex: 0, scriptWriterResponses: [], currentSceneIndex: 0
+    };
+    saveProState();
+    
+    const architectPrompt = proStoryArchitectEl.value.trim();
+    if (!architectPrompt) return log('Story Architect prompt missing.', 'error');
+    const fullPrompt = `${architectPrompt}\n\n${data[0]}`;
+    log('Replaying Story Architect...', 'running');
+    sendMessageToContentScript('run_single', {
+      prompt: fullPrompt, stepName: 'story_architect',
+      isNewChat: newChatToggle.checked, meta: { row: 1, col: 'B' }
+    });
+  });
+}
+
+if (replayWriterBtn) {
+  replayWriterBtn.addEventListener('click', async () => {
+    let data = await fetchColumnFromSheet('B');
+    if (!data || data.length === 0) return log('No data found in Column B for Script Writer', 'error');
+    
+    data = data.filter(d => d && d.trim().length > 0);
+    if (data.length === 0) return log('No episodes found in Column B', 'error');
+
+    proState = {
+      active: true, step: 'script_writer', singleStep: true, episodes: data,
+      currentEpisodeIndex: 0, scriptWriterResponses: [], currentSceneIndex: 0,
+      globalSceneOutputIndex: 0
+    };
+    saveProState();
+    log(`Replaying Script Writer with ${data.length} episodes...`, 'running');
+    runNextScriptWriter();
+  });
+}
+
+if (replaySceneBtn) {
+  replaySceneBtn.addEventListener('click', async () => {
+    let data = await fetchColumnFromSheet('C');
+    if (!data || data.length === 0) return log('No data found in Column C for Scene Details', 'error');
+    
+    data = data.filter(d => d && d.trim().length > 0);
+    if (data.length === 0) return log('No script outputs found in Column C', 'error');
+
+    proState = {
+      active: true, step: 'scene_details', singleStep: true, episodes: [],
+      currentEpisodeIndex: 0, scriptWriterResponses: data, currentSceneIndex: 0,
+      globalSceneOutputIndex: 0
+    };
+    saveProState();
+    log(`Replaying Scene Details with ${data.length} scenes...`, 'running');
+    runNextSceneDetails();
+  });
+}
+
+if (replayExtraCharacterBtn) {
+  replayExtraCharacterBtn.addEventListener('click', async () => {
+    proState = { active: true, step: 'extra_character', singleStep: true };
+    saveProState();
+    runExtraCharacter();
+  });
+}
+
+if (replayExtraLocationBtn) {
+  replayExtraLocationBtn.addEventListener('click', async () => {
+    proState = { active: true, step: 'extra_location', singleStep: true };
+    saveProState();
+    runExtraLocation();
   });
 }

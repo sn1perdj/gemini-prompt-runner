@@ -873,3 +873,26 @@ textarea::-webkit-scrollbar-thumb {
   background: #4F46E5;
   color: #FFFFFF;
 }
+
+.action-buttons {
+  display: flex;
+  gap: 6px;
+}
+
+.btn-replay-step {
+  background: #FEE2E2;
+  color: #DC2626;
+  border: none;
+  border-radius: 6px;
+  padding: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.btn-replay-step:hover {
+  background: #DC2626;
+  color: #FFFFFF;
+}
