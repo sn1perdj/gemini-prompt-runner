@@ -54,6 +54,11 @@ const replayExtraLocationBtn = document.getElementById('replayExtraLocation');
 // Extra tab elements (removed)
 const extraCharacterPromptEl = document.getElementById('extraCharacterPrompt');
 const extraLocationPromptEl = document.getElementById('extraLocationPrompt');
+const imagePromptGenEl = document.getElementById('imagePromptGen');
+const playImagePromptBtn = document.getElementById('playImagePrompt');
+const replayImagePromptBtn = document.getElementById('replayImagePrompt');
+const stopImageBtn = document.getElementById('stopImageBtn');
+const imageStartSceneEl = document.getElementById('imageStartScene');
 
 const stepPlayBtns = [
   playOutlinerBtn, playArchitectBtn, playWriterBtn, playSceneBtn, playExtraCharacterBtn, playExtraLocationBtn
@@ -567,7 +572,7 @@ chrome.runtime.onMessage.addListener((message) => {
 
     const webhookUrl = webhookUrlEl.value.trim();
     if (webhookUrl && webhookUrl.startsWith('https://script.google.com')) {
-      if (stepName !== 'story_architect' && stepName !== 'scene_details') {
+      if (stepName !== 'story_architect' && stepName !== 'scene_details' && stepName !== 'image_prompt') {
         fetch(webhookUrl, {
           method: 'POST',
           body: JSON.stringify({
@@ -717,6 +722,38 @@ chrome.runtime.onMessage.addListener((message) => {
         proState.active = false;
         saveProState();
       })();
+    } else if (stepName === 'image_prompt') {
+      const prompts = (response || '').split(/\n\s*\n/).map(s => s.trim()).filter(s => s.length > 0);
+      log(`Found ${prompts.length} image prompts in this scene.`, 'info');
+
+      (async () => {
+        if (webhookUrl && webhookUrl.startsWith('https://script.google.com')) {
+          for (const p of prompts) {
+            proState.globalImageOutputIndex = (proState.globalImageOutputIndex || 0) + 1;
+            const row = proState.globalImageOutputIndex;
+            try {
+              await fetch(webhookUrl, {
+                method: 'POST',
+                body: JSON.stringify({ mode: 'pro', column: 'G', row: row, response: p })
+              });
+              log(`Saved Image Prompt to G${row}`, 'success');
+            } catch (err) {
+              log(`Error saving to G${row}: ${err.message}`, 'error');
+            }
+          }
+        }
+        
+        if (proState.singleStep) {
+          log('Image Prompt complete.', 'success');
+          proState.active = false;
+          saveProState();
+          return;
+        }
+        
+        proState.currentImageIndex++;
+        saveProState();
+        runNextImagePrompt();
+      })();
     }
   }
 });
@@ -766,7 +803,7 @@ async function loadSavedSettings() {
   const data = await chrome.storage.local.get([
     'systemPrompt', 'newChat', 'webhookUrl', 
     'proStoryIdea', 'proScriptOutliner', 'proStoryArchitect', 'proScriptWriter', 'proSceneDetails', 'proState',
-    'extraCharacterPrompt', 'extraLocationPrompt'
+    'extraCharacterPrompt', 'extraLocationPrompt', 'imagePromptGen', 'imageStartScene'
   ]);
   
   if (data.systemPrompt) systemPromptEl.value = data.systemPrompt;
@@ -782,6 +819,8 @@ async function loadSavedSettings() {
 
   if (data.extraCharacterPrompt && extraCharacterPromptEl) extraCharacterPromptEl.value = data.extraCharacterPrompt;
   if (data.extraLocationPrompt && extraLocationPromptEl) extraLocationPromptEl.value = data.extraLocationPrompt;
+  if (data.imagePromptGen && imagePromptGenEl) imagePromptGenEl.value = data.imagePromptGen;
+  if (data.imageStartScene && imageStartSceneEl) imageStartSceneEl.value = data.imageStartScene;
 
   if (webhookUrlEl) {
     webhookUrlEl.addEventListener('change', () => {
@@ -789,7 +828,7 @@ async function loadSavedSettings() {
     });
   }
 
-  [proStoryIdeaEl, proScriptOutlinerEl, proStoryArchitectEl, proScriptWriterEl, proSceneDetailsEl, extraCharacterPromptEl, extraLocationPromptEl].forEach(el => {
+  [proStoryIdeaEl, proScriptOutlinerEl, proStoryArchitectEl, proScriptWriterEl, proSceneDetailsEl, extraCharacterPromptEl, extraLocationPromptEl, imagePromptGenEl, imageStartSceneEl].forEach(el => {
     if (el) {
       el.addEventListener('change', () => {
         chrome.storage.local.set({
@@ -799,7 +838,9 @@ async function loadSavedSettings() {
           proScriptWriter: proScriptWriterEl.value.trim(),
           proSceneDetails: proSceneDetailsEl.value.trim(),
           extraCharacterPrompt: extraCharacterPromptEl.value.trim(),
-          extraLocationPrompt: extraLocationPromptEl.value.trim()
+          extraLocationPrompt: extraLocationPromptEl.value.trim(),
+          imagePromptGen: imagePromptGenEl.value.trim(),
+          imageStartScene: imageStartSceneEl ? imageStartSceneEl.value.trim() : ''
         });
       });
     }
@@ -846,6 +887,7 @@ if (downloadResponsesBtn) {
 function updateProButtons() {
   if (startProBtn) startProBtn.disabled = proState.active;
   if (stopProBtn) stopProBtn.disabled = !proState.active;
+  if (stopImageBtn) stopImageBtn.disabled = !proState.active;
 }
 
 if (startProBtn) {
@@ -896,6 +938,16 @@ if (playOutlinerBtn) {
 if (stopProBtn) {
   stopProBtn.addEventListener('click', async () => {
     log('Stopping Pro Pipeline...', 'error');
+    proState.active = false;
+    chrome.storage.local.set({ proState });
+    updateProButtons();
+    await sendMessageToContentScript('stop');
+  });
+}
+
+if (stopImageBtn) {
+  stopImageBtn.addEventListener('click', async () => {
+    log('Stopping Image Pipeline...', 'error');
     proState.active = false;
     chrome.storage.local.set({ proState });
     updateProButtons();
@@ -1192,4 +1244,92 @@ if (replayExtraLocationBtn) {
     saveProState();
     runExtraLocation();
   });
+}
+
+function runNextImagePrompt() {
+  if (!proState.active) return;
+  const idx = proState.currentImageIndex;
+  if (idx >= proState.sceneDetailsResponses.length) {
+    if (proState.singleStep) {
+      log('Image Prompt complete.', 'success');
+      proState.active = false;
+      saveProState();
+      return;
+    }
+    log('All Image Prompts complete.', 'success');
+    proState.active = false;
+    saveProState();
+    return;
+  }
+  
+  const prompt = imagePromptGenEl.value.trim();
+  if (!prompt) {
+     log('Image Prompt missing. Pipeline halted.', 'warning');
+     proState.active = false;
+     saveProState();
+     return;
+  }
+  
+  const sceneText = proState.sceneDetailsResponses[idx];
+  const fullPrompt = `${prompt}\n\n${sceneText}`;
+  log(`Running Image Prompt for Scene ${idx + 1}...`, 'running');
+  sendMessageToContentScript('run_single', {
+    prompt: fullPrompt,
+    stepName: 'image_prompt',
+    isNewChat: true,
+    meta: { row: idx + 1, col: 'G' }
+  });
+}
+
+async function setupImagePromptStart(isSingleStep) {
+  let dataD = await fetchColumnFromSheet('D');
+  if (!dataD || dataD.length === 0) return log('No data found in Column D', 'error');
+  let scenes = dataD.filter(d => d && d.trim().length > 0);
+  if (scenes.length === 0) return log('No scene details found in Column D', 'error');
+  
+  let startIndex = 0;
+  if (imageStartSceneEl && imageStartSceneEl.value.trim() !== '') {
+    const startSceneVal = parseInt(imageStartSceneEl.value.trim(), 10);
+    if (!isNaN(startSceneVal) && startSceneVal > 0) {
+      startIndex = startSceneVal - 1;
+      if (startIndex >= scenes.length) {
+        return log(`Start scene ${startSceneVal} is out of bounds. Max: ${scenes.length}`, 'error');
+      }
+    }
+  }
+
+  let emptyGIndex = 0;
+  if (startIndex > 0) {
+    let dataG = await fetchColumnFromSheet('G');
+    if (dataG && dataG.length > 0) {
+      let lastFilled = -1;
+      for (let i = 0; i < dataG.length; i++) {
+        if (dataG[i] && dataG[i].toString().trim().length > 0) {
+          lastFilled = i;
+        }
+      }
+      emptyGIndex = lastFilled + 1;
+    }
+  }
+
+  proState = { 
+    active: true, 
+    step: 'image_prompt', 
+    singleStep: isSingleStep,
+    sceneDetailsResponses: scenes,
+    currentImageIndex: startIndex,
+    globalImageOutputIndex: emptyGIndex
+  };
+  saveProState();
+  const startType = isSingleStep ? 'Replaying' : 'Starting';
+  log(`${startType} Image Prompt from Scene ${startIndex + 1}, output to G${emptyGIndex + 1}...`, 'running');
+  runNextImagePrompt();
+}
+
+if (playImagePromptBtn) {
+  playImagePromptBtn.addEventListener('click', () => setupImagePromptStart(false));
+}
+
+if (replayImagePromptBtn) {
+  replayImagePromptBtn.addEventListener('click', () => setupImagePromptStart(true));
 }

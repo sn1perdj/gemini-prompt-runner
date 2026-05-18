@@ -57,6 +57,7 @@
     <div class="tabs">
       <button class="tab-btn" data-tab="lite">Lite</button>
       <button class="tab-btn active" data-tab="pro">Pro</button>
+      <button class="tab-btn" data-tab="image">Image</button>
     </div>
 
     <div id="lite-tab" class="tab-content">
@@ -264,6 +265,32 @@
           Start Pro Pipeline
         </button>
         <button id="stopProBtn" class="btn btn-danger" disabled>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+            <path d="M18 6L6 18M6 6l12 12"/>
+          </svg>
+          Stop
+        </button>
+      </div>
+    </div>
+
+    <div id="image-tab" class="tab-content">
+      <div class="form-group">
+        <div class="label-row">
+          <label>Image Prompt Gen</label>
+          <div class="action-buttons">
+            <input type="number" id="imageStartScene" placeholder="Start Scene #" min="1" style="width: 100px; padding: 4px; border-radius: 6px; border: 1.5px solid #E2E8F0; font-size: 11px;">
+            <button class="btn-play-step" id="playImagePrompt" style="display: flex;" title="Start from here">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+            </button>
+            <button class="btn-replay-step" id="replayImagePrompt" style="display: flex;" title="Replay only this prompt">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+            </button>
+          </div>
+        </div>
+        <textarea id="imagePromptGen" placeholder="Enter image prompt gen..." rows="4"></textarea>
+      </div>
+      <div class="buttons">
+        <button id="stopImageBtn" class="btn btn-danger" disabled>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
             <path d="M18 6L6 18M6 6l12 12"/>
           </svg>
