@@ -59,6 +59,8 @@ const playImagePromptBtn = document.getElementById('playImagePrompt');
 const replayImagePromptBtn = document.getElementById('replayImagePrompt');
 const stopImageBtn = document.getElementById('stopImageBtn');
 const imageStartSceneEl = document.getElementById('imageStartScene');
+const imageRerunSceneEl = document.getElementById('imageRerunScene');
+const imageCharacterRefEl = document.getElementById('imageCharacterRef');
 
 const stepPlayBtns = [
   playOutlinerBtn, playArchitectBtn, playWriterBtn, playSceneBtn, playExtraCharacterBtn, playExtraLocationBtn
@@ -91,6 +93,42 @@ async function fetchColumnFromSheet(column) {
     log(`Failed to fetch from sheet: ${err.message}`, 'error');
     return null;
   }
+}
+
+async function saveSheetCell(column, row, response) {
+  const url = webhookUrlEl.value.trim();
+  if (!url || !url.startsWith('https://script.google.com')) {
+    log('Valid Google Sheets Webhook URL is required.', 'error');
+    return false;
+  }
+
+  try {
+    await fetch(url, {
+      method: 'POST',
+      body: JSON.stringify({ mode: 'pro', column, row, response })
+    });
+    return true;
+  } catch (err) {
+    log(`Error saving to ${column}${row}: ${err.message}`, 'error');
+    return false;
+  }
+}
+
+function parseImagePromptSceneTag(text) {
+  const match = (text || '').toString().match(/\bs(\d+)p(\d+)\b/i);
+  if (!match) return null;
+  return {
+    scene: parseInt(match[1], 10),
+    prompt: parseInt(match[2], 10)
+  };
+}
+
+function ensureImagePromptTag(prompt, sceneNumber, promptNumber) {
+  const text = (prompt || '').trim();
+  const expectedTag = `s${sceneNumber}p${promptNumber}`;
+  const existingTag = parseImagePromptSceneTag(text);
+  if (existingTag && existingTag.scene === sceneNumber) return text;
+  return `${expectedTag}\n${text}`;
 }
 
 
@@ -728,14 +766,25 @@ chrome.runtime.onMessage.addListener((message) => {
 
       (async () => {
         if (webhookUrl && webhookUrl.startsWith('https://script.google.com')) {
-          for (const p of prompts) {
-            proState.globalImageOutputIndex = (proState.globalImageOutputIndex || 0) + 1;
-            const row = proState.globalImageOutputIndex;
+          for (let i = 0; i < prompts.length; i++) {
+            const sceneNumber = proState.imageRerunScene || (proState.currentImageIndex + 1);
+            const promptNumber = i + 1;
+            const promptText = ensureImagePromptTag(prompts[i], sceneNumber, promptNumber);
+            let row;
+
+            if (proState.imageTargetRows && proState.imageTargetRows.length > 0) {
+              row = proState.imageTargetRows[i];
+              if (!row) {
+                proState.globalImageOutputIndex = (proState.globalImageOutputIndex || 0) + 1;
+                row = proState.globalImageOutputIndex;
+              }
+            } else {
+              proState.globalImageOutputIndex = (proState.globalImageOutputIndex || 0) + 1;
+              row = proState.globalImageOutputIndex;
+            }
+
             try {
-              await fetch(webhookUrl, {
-                method: 'POST',
-                body: JSON.stringify({ mode: 'pro', column: 'G', row: row, response: p })
-              });
+              await saveSheetCell('G', row, promptText);
               log(`Saved Image Prompt to G${row}`, 'success');
             } catch (err) {
               log(`Error saving to G${row}: ${err.message}`, 'error');
@@ -803,7 +852,7 @@ async function loadSavedSettings() {
   const data = await chrome.storage.local.get([
     'systemPrompt', 'newChat', 'webhookUrl', 
     'proStoryIdea', 'proScriptOutliner', 'proStoryArchitect', 'proScriptWriter', 'proSceneDetails', 'proState',
-    'extraCharacterPrompt', 'extraLocationPrompt', 'imagePromptGen', 'imageStartScene'
+    'extraCharacterPrompt', 'extraLocationPrompt', 'imagePromptGen', 'imageStartScene', 'imageRerunScene', 'imageCharacterRef'
   ]);
   
   if (data.systemPrompt) systemPromptEl.value = data.systemPrompt;
@@ -821,6 +870,8 @@ async function loadSavedSettings() {
   if (data.extraLocationPrompt && extraLocationPromptEl) extraLocationPromptEl.value = data.extraLocationPrompt;
   if (data.imagePromptGen && imagePromptGenEl) imagePromptGenEl.value = data.imagePromptGen;
   if (data.imageStartScene && imageStartSceneEl) imageStartSceneEl.value = data.imageStartScene;
+  if (data.imageRerunScene && imageRerunSceneEl) imageRerunSceneEl.value = data.imageRerunScene;
+  if (data.imageCharacterRef && imageCharacterRefEl) imageCharacterRefEl.value = data.imageCharacterRef;
 
   if (webhookUrlEl) {
     webhookUrlEl.addEventListener('change', () => {
@@ -828,7 +879,7 @@ async function loadSavedSettings() {
     });
   }
 
-  [proStoryIdeaEl, proScriptOutlinerEl, proStoryArchitectEl, proScriptWriterEl, proSceneDetailsEl, extraCharacterPromptEl, extraLocationPromptEl, imagePromptGenEl, imageStartSceneEl].forEach(el => {
+  [proStoryIdeaEl, proScriptOutlinerEl, proStoryArchitectEl, proScriptWriterEl, proSceneDetailsEl, extraCharacterPromptEl, extraLocationPromptEl, imagePromptGenEl, imageStartSceneEl, imageRerunSceneEl, imageCharacterRefEl].forEach(el => {
     if (el) {
       el.addEventListener('change', () => {
         chrome.storage.local.set({
@@ -840,7 +891,9 @@ async function loadSavedSettings() {
           extraCharacterPrompt: extraCharacterPromptEl.value.trim(),
           extraLocationPrompt: extraLocationPromptEl.value.trim(),
           imagePromptGen: imagePromptGenEl.value.trim(),
-          imageStartScene: imageStartSceneEl ? imageStartSceneEl.value.trim() : ''
+          imageStartScene: imageStartSceneEl ? imageStartSceneEl.value.trim() : '',
+          imageRerunScene: imageRerunSceneEl ? imageRerunSceneEl.value.trim() : '',
+          imageCharacterRef: imageCharacterRefEl ? imageCharacterRefEl.value.trim() : ''
         });
       });
     }
@@ -1263,6 +1316,7 @@ function runNextImagePrompt() {
   }
   
   const prompt = imagePromptGenEl.value.trim();
+  const charRef = imageCharacterRefEl ? imageCharacterRefEl.value.trim() : '';
   if (!prompt) {
      log('Image Prompt missing. Pipeline halted.', 'warning');
      proState.active = false;
@@ -1271,7 +1325,11 @@ function runNextImagePrompt() {
   }
   
   const sceneText = proState.sceneDetailsResponses[idx];
-  const fullPrompt = `${prompt}\n\n${sceneText}`;
+  let fullPrompt = prompt;
+  if (charRef) {
+    fullPrompt += `\n\n${charRef}`;
+  }
+  fullPrompt += `\n\n${sceneText}`;
   log(`Running Image Prompt for Scene ${idx + 1}...`, 'running');
   sendMessageToContentScript('run_single', {
     prompt: fullPrompt,
@@ -1284,31 +1342,67 @@ function runNextImagePrompt() {
 async function setupImagePromptStart(isSingleStep) {
   let dataD = await fetchColumnFromSheet('D');
   if (!dataD || dataD.length === 0) return log('No data found in Column D', 'error');
-  let scenes = dataD.filter(d => d && d.trim().length > 0);
+  let scenes = dataD.map(d => (d || '').toString());
   if (scenes.length === 0) return log('No scene details found in Column D', 'error');
+
+  let rerunScene = 0;
+  if (isSingleStep && imageRerunSceneEl && imageRerunSceneEl.value.trim() !== '') {
+    rerunScene = parseInt(imageRerunSceneEl.value.trim(), 10);
+    if (isNaN(rerunScene) || rerunScene < 1) {
+      return log('Enter a valid rerun scene number.', 'error');
+    }
+    if (rerunScene > scenes.length || !scenes[rerunScene - 1].trim()) {
+      return log(`No scene details found in D${rerunScene}.`, 'error');
+    }
+  }
   
-  let startIndex = 0;
-  if (imageStartSceneEl && imageStartSceneEl.value.trim() !== '') {
+  let startIndex = rerunScene ? rerunScene - 1 : 0;
+  if (!rerunScene && imageStartSceneEl && imageStartSceneEl.value.trim() !== '') {
     const startSceneVal = parseInt(imageStartSceneEl.value.trim(), 10);
     if (!isNaN(startSceneVal) && startSceneVal > 0) {
       startIndex = startSceneVal - 1;
-      if (startIndex >= scenes.length) {
-        return log(`Start scene ${startSceneVal} is out of bounds. Max: ${scenes.length}`, 'error');
+      if (startIndex >= scenes.length || !scenes[startIndex].trim()) {
+        return log(`No scene details found in D${startSceneVal}.`, 'error');
       }
     }
   }
 
   let emptyGIndex = 0;
-  if (startIndex > 0) {
+  let imageTargetRows = [];
+  if (rerunScene || startIndex > 0) {
     let dataG = await fetchColumnFromSheet('G');
     if (dataG && dataG.length > 0) {
       let lastFilled = -1;
       for (let i = 0; i < dataG.length; i++) {
-        if (dataG[i] && dataG[i].toString().trim().length > 0) {
+        const cellText = dataG[i] ? dataG[i].toString().trim() : '';
+        if (cellText.length > 0) {
           lastFilled = i;
+        }
+
+        if (rerunScene) {
+          const tag = parseImagePromptSceneTag(cellText);
+          if (tag && tag.scene === rerunScene) {
+            imageTargetRows.push({ row: i + 1, prompt: tag.prompt });
+          }
         }
       }
       emptyGIndex = lastFilled + 1;
+    }
+  }
+
+  if (rerunScene) {
+    if (imageTargetRows.length === 0) {
+      return log(`No existing G cells tagged s${rerunScene}p* were found.`, 'error');
+    }
+
+    imageTargetRows.sort((a, b) => a.prompt - b.prompt || a.row - b.row);
+    imageTargetRows = imageTargetRows.map(item => item.row);
+
+    for (const row of imageTargetRows) {
+      const cleared = await saveSheetCell('G', row, '');
+      if (cleared) {
+        log(`Cleared G${row}`, 'warning');
+      }
     }
   }
 
@@ -1318,11 +1412,14 @@ async function setupImagePromptStart(isSingleStep) {
     singleStep: isSingleStep,
     sceneDetailsResponses: scenes,
     currentImageIndex: startIndex,
-    globalImageOutputIndex: emptyGIndex
+    globalImageOutputIndex: emptyGIndex,
+    imageRerunScene: rerunScene || null,
+    imageTargetRows
   };
   saveProState();
-  const startType = isSingleStep ? 'Replaying' : 'Starting';
-  log(`${startType} Image Prompt from Scene ${startIndex + 1}, output to G${emptyGIndex + 1}...`, 'running');
+  const startType = rerunScene ? 'Rerunning' : (isSingleStep ? 'Replaying' : 'Starting');
+  const outputText = rerunScene ? `replacement rows ${imageTargetRows.map(row => `G${row}`).join(', ')}` : `output to G${emptyGIndex + 1}`;
+  log(`${startType} Image Prompt from Scene ${startIndex + 1}, ${outputText}...`, 'running');
   runNextImagePrompt();
 }
 
