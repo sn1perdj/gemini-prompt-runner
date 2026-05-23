@@ -34,6 +34,10 @@ const proScriptWriterEl = document.getElementById('proScriptWriter');
 const proSceneDetailsEl = document.getElementById('proSceneDetails');
 const startProBtn = document.getElementById('startProBtn');
 const stopProBtn = document.getElementById('stopProBtn');
+const proPresetSelectEl = document.getElementById('proPresetSelect');
+const newPresetBtn = document.getElementById('newPresetBtn');
+const renamePresetBtn = document.getElementById('renamePresetBtn');
+const deletePresetBtn = document.getElementById('deletePresetBtn');
 
 // Manual mode elements
 const modeRadios = document.getElementsByName('proMode');
@@ -144,6 +148,12 @@ let proState = {
 
 let prompts = [];
 const MAX_LOG_ENTRIES = 200;
+const PRO_PRESET_STORAGE_KEY = 'proPromptPresets';
+const ACTIVE_PRO_PRESET_STORAGE_KEY = 'activeProPromptPresetId';
+let proPromptPresets = {};
+let activeProPresetId = '';
+let isApplyingProPreset = false;
+let proPresetSaveTimer = null;
 
 tabBtns.forEach(btn => {
   btn.addEventListener('click', () => {
@@ -403,6 +413,215 @@ function loadPrompts() {
       resolve();
     });
   });
+}
+
+function createPresetId() {
+  return `preset_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function normalizePresetName(name) {
+  return (name || '').trim().replace(/\s+/g, ' ');
+}
+
+function getCurrentProPromptValues() {
+  return {
+    proStoryIdea: proStoryIdeaEl ? proStoryIdeaEl.value.trim() : '',
+    proScriptOutliner: proScriptOutlinerEl ? proScriptOutlinerEl.value.trim() : '',
+    proStoryArchitect: proStoryArchitectEl ? proStoryArchitectEl.value.trim() : '',
+    proScriptWriter: proScriptWriterEl ? proScriptWriterEl.value.trim() : '',
+    proSceneDetails: proSceneDetailsEl ? proSceneDetailsEl.value.trim() : '',
+    extraCharacterPrompt: extraCharacterPromptEl ? extraCharacterPromptEl.value.trim() : '',
+    extraLocationPrompt: extraLocationPromptEl ? extraLocationPromptEl.value.trim() : '',
+    imagePromptGen: imagePromptGenEl ? imagePromptGenEl.value.trim() : ''
+  };
+}
+
+function applyProPromptValues(values = {}) {
+  isApplyingProPreset = true;
+  if (proStoryIdeaEl) proStoryIdeaEl.value = values.proStoryIdea || '';
+  if (proScriptOutlinerEl) proScriptOutlinerEl.value = values.proScriptOutliner || '';
+  if (proStoryArchitectEl) proStoryArchitectEl.value = values.proStoryArchitect || '';
+  if (proScriptWriterEl) proScriptWriterEl.value = values.proScriptWriter || '';
+  if (proSceneDetailsEl) proSceneDetailsEl.value = values.proSceneDetails || '';
+  if (extraCharacterPromptEl) extraCharacterPromptEl.value = values.extraCharacterPrompt || '';
+  if (extraLocationPromptEl) extraLocationPromptEl.value = values.extraLocationPrompt || '';
+  if (imagePromptGenEl) imagePromptGenEl.value = values.imagePromptGen || '';
+  isApplyingProPreset = false;
+}
+
+function renderProPresetOptions() {
+  if (!proPresetSelectEl) return;
+
+  const presetList = Object.values(proPromptPresets).sort((a, b) => a.name.localeCompare(b.name));
+  proPresetSelectEl.innerHTML = '';
+
+  presetList.forEach(preset => {
+    const option = document.createElement('option');
+    option.value = preset.id;
+    option.textContent = preset.name;
+    proPresetSelectEl.appendChild(option);
+  });
+
+  if (activeProPresetId && proPromptPresets[activeProPresetId]) {
+    proPresetSelectEl.value = activeProPresetId;
+  }
+
+  const hasMultiplePresets = presetList.length > 1;
+  if (deletePresetBtn) deletePresetBtn.disabled = !hasMultiplePresets;
+  if (renamePresetBtn) renamePresetBtn.disabled = presetList.length === 0;
+}
+
+async function persistProPresetState() {
+  await chrome.storage.local.set({
+    [PRO_PRESET_STORAGE_KEY]: proPromptPresets,
+    [ACTIVE_PRO_PRESET_STORAGE_KEY]: activeProPresetId
+  });
+}
+
+async function switchProPreset(presetId, options = {}) {
+  if (!presetId || !proPromptPresets[presetId]) return;
+
+  activeProPresetId = presetId;
+  renderProPresetOptions();
+  applyProPromptValues(proPromptPresets[presetId].values);
+  await persistProPresetState();
+
+  if (!options.silent) {
+    log(`Loaded preset "${proPromptPresets[presetId].name}"`, 'success');
+  }
+}
+
+async function saveActiveProPresetValues(options = {}) {
+  if (isApplyingProPreset || !activeProPresetId || !proPromptPresets[activeProPresetId]) return;
+
+  const values = getCurrentProPromptValues();
+  proPromptPresets[activeProPresetId] = {
+    ...proPromptPresets[activeProPresetId],
+    values
+  };
+
+  await chrome.storage.local.set({
+    proStoryIdea: values.proStoryIdea,
+    proScriptOutliner: values.proScriptOutliner,
+    proStoryArchitect: values.proStoryArchitect,
+    proScriptWriter: values.proScriptWriter,
+    proSceneDetails: values.proSceneDetails,
+    extraCharacterPrompt: values.extraCharacterPrompt,
+    extraLocationPrompt: values.extraLocationPrompt,
+    imagePromptGen: values.imagePromptGen,
+    [PRO_PRESET_STORAGE_KEY]: proPromptPresets,
+    [ACTIVE_PRO_PRESET_STORAGE_KEY]: activeProPresetId
+  });
+
+  if (!options.silent) {
+    log(`Saved preset "${proPromptPresets[activeProPresetId].name}"`, 'info');
+  }
+}
+
+function scheduleSaveActiveProPreset() {
+  if (proPresetSaveTimer) {
+    clearTimeout(proPresetSaveTimer);
+  }
+
+  proPresetSaveTimer = window.setTimeout(() => {
+    proPresetSaveTimer = null;
+    saveActiveProPresetValues({ silent: true });
+  }, 250);
+}
+
+async function createNewProPreset() {
+  const rawName = window.prompt('Enter a preset name:');
+  const name = normalizePresetName(rawName);
+  if (!name) return;
+
+  const duplicate = Object.values(proPromptPresets).find(preset => preset.name.toLowerCase() === name.toLowerCase());
+  if (duplicate) {
+    await switchProPreset(duplicate.id, { silent: true });
+    log(`Preset "${name}" already exists. Switched to it instead.`, 'warning');
+    return;
+  }
+
+  const id = createPresetId();
+  proPromptPresets[id] = {
+    id,
+    name,
+    values: getCurrentProPromptValues()
+  };
+
+  activeProPresetId = id;
+  renderProPresetOptions();
+  await persistProPresetState();
+  log(`Created preset "${name}"`, 'success');
+}
+
+async function renameActiveProPreset() {
+  if (!activeProPresetId || !proPromptPresets[activeProPresetId]) return;
+
+  const currentName = proPromptPresets[activeProPresetId].name;
+  const rawName = window.prompt('Rename preset:', currentName);
+  const name = normalizePresetName(rawName);
+  if (!name || name === currentName) return;
+
+  const duplicate = Object.values(proPromptPresets).find(preset => preset.id !== activeProPresetId && preset.name.toLowerCase() === name.toLowerCase());
+  if (duplicate) {
+    log(`A preset named "${name}" already exists.`, 'warning');
+    return;
+  }
+
+  proPromptPresets[activeProPresetId] = {
+    ...proPromptPresets[activeProPresetId],
+    name
+  };
+
+  renderProPresetOptions();
+  await persistProPresetState();
+  log(`Renamed preset to "${name}"`, 'success');
+}
+
+async function deleteActiveProPreset() {
+  if (!activeProPresetId || !proPromptPresets[activeProPresetId]) return;
+
+  const presetIds = Object.keys(proPromptPresets);
+  if (presetIds.length <= 1) {
+    log('Keep at least one preset available.', 'warning');
+    return;
+  }
+
+  const name = proPromptPresets[activeProPresetId].name;
+  if (!window.confirm(`Delete preset "${name}"?`)) return;
+
+  const nextPresetId = presetIds.find(id => id !== activeProPresetId);
+  delete proPromptPresets[activeProPresetId];
+  activeProPresetId = nextPresetId || '';
+  renderProPresetOptions();
+  await switchProPreset(activeProPresetId, { silent: true });
+  log(`Deleted preset "${name}"`, 'warning');
+}
+
+function initializeProPresets(data) {
+  const storedPresets = data[PRO_PRESET_STORAGE_KEY];
+  const storedActivePresetId = data[ACTIVE_PRO_PRESET_STORAGE_KEY];
+
+  if (storedPresets && Object.keys(storedPresets).length > 0) {
+    proPromptPresets = storedPresets;
+    activeProPresetId = storedActivePresetId && storedPresets[storedActivePresetId]
+      ? storedActivePresetId
+      : Object.keys(storedPresets)[0];
+    renderProPresetOptions();
+    applyProPromptValues(proPromptPresets[activeProPresetId].values);
+    return;
+  }
+
+  const storiesPresetId = createPresetId();
+  proPromptPresets = {
+    [storiesPresetId]: {
+      id: storiesPresetId,
+      name: 'Stories',
+      values: getCurrentProPromptValues()
+    }
+  };
+  activeProPresetId = storiesPresetId;
+  renderProPresetOptions();
 }
 
 addPromptBtn.addEventListener('click', () => {
@@ -852,7 +1071,8 @@ async function loadSavedSettings() {
   const data = await chrome.storage.local.get([
     'systemPrompt', 'newChat', 'webhookUrl', 
     'proStoryIdea', 'proScriptOutliner', 'proStoryArchitect', 'proScriptWriter', 'proSceneDetails', 'proState',
-    'extraCharacterPrompt', 'extraLocationPrompt', 'imagePromptGen', 'imageStartScene', 'imageRerunScene', 'imageCharacterRef'
+    'extraCharacterPrompt', 'extraLocationPrompt', 'imagePromptGen', 'imageStartScene', 'imageRerunScene', 'imageCharacterRef',
+    PRO_PRESET_STORAGE_KEY, ACTIVE_PRO_PRESET_STORAGE_KEY
   ]);
   
   if (data.systemPrompt) systemPromptEl.value = data.systemPrompt;
@@ -872,6 +1092,7 @@ async function loadSavedSettings() {
   if (data.imageStartScene && imageStartSceneEl) imageStartSceneEl.value = data.imageStartScene;
   if (data.imageRerunScene && imageRerunSceneEl) imageRerunSceneEl.value = data.imageRerunScene;
   if (data.imageCharacterRef && imageCharacterRefEl) imageCharacterRefEl.value = data.imageCharacterRef;
+  initializeProPresets(data);
 
   if (webhookUrlEl) {
     webhookUrlEl.addEventListener('change', () => {
@@ -881,23 +1102,43 @@ async function loadSavedSettings() {
 
   [proStoryIdeaEl, proScriptOutlinerEl, proStoryArchitectEl, proScriptWriterEl, proSceneDetailsEl, extraCharacterPromptEl, extraLocationPromptEl, imagePromptGenEl, imageStartSceneEl, imageRerunSceneEl, imageCharacterRefEl].forEach(el => {
     if (el) {
-      el.addEventListener('change', () => {
-        chrome.storage.local.set({
-          proStoryIdea: proStoryIdeaEl.value.trim(),
-          proScriptOutliner: proScriptOutlinerEl.value.trim(),
-          proStoryArchitect: proStoryArchitectEl.value.trim(),
-          proScriptWriter: proScriptWriterEl.value.trim(),
-          proSceneDetails: proSceneDetailsEl.value.trim(),
-          extraCharacterPrompt: extraCharacterPromptEl.value.trim(),
-          extraLocationPrompt: extraLocationPromptEl.value.trim(),
-          imagePromptGen: imagePromptGenEl.value.trim(),
+      if (el !== imageStartSceneEl && el !== imageRerunSceneEl && el !== imageCharacterRefEl) {
+        el.addEventListener('input', () => {
+          scheduleSaveActiveProPreset();
+        });
+      }
+
+      el.addEventListener('change', async () => {
+        await chrome.storage.local.set({
           imageStartScene: imageStartSceneEl ? imageStartSceneEl.value.trim() : '',
           imageRerunScene: imageRerunSceneEl ? imageRerunSceneEl.value.trim() : '',
           imageCharacterRef: imageCharacterRefEl ? imageCharacterRefEl.value.trim() : ''
         });
+        await saveActiveProPresetValues({ silent: true });
       });
     }
   });
+
+  if (proPresetSelectEl) {
+    proPresetSelectEl.addEventListener('change', async () => {
+      await saveActiveProPresetValues({ silent: true });
+      await switchProPreset(proPresetSelectEl.value);
+    });
+  }
+
+  if (newPresetBtn) {
+    newPresetBtn.addEventListener('click', createNewProPreset);
+  }
+
+  if (renamePresetBtn) {
+    renamePresetBtn.addEventListener('click', renameActiveProPreset);
+  }
+
+  if (deletePresetBtn) {
+    deletePresetBtn.addEventListener('click', deleteActiveProPreset);
+  }
+
+  await persistProPresetState();
 
   restoreLogs();
   await syncStateFromContentScript();

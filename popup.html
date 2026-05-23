@@ -55,255 +55,274 @@
     </div>
 
     <div class="tabs">
-      <button class="tab-btn" data-tab="lite">Lite</button>
       <button class="tab-btn active" data-tab="pro">Pro</button>
       <button class="tab-btn" data-tab="image">Image</button>
     </div>
 
-    <div id="lite-tab" class="tab-content">
-      <div class="form-group">
-      <label for="systemPrompt">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>
-        </svg>
-        System Prompt
-      </label>
-      <textarea id="systemPrompt" placeholder="This will prefix every prompt you send..." rows="4"></textarea>
-    </div>
-
-    <div class="form-group">
-      <div class="label-row">
-        <label>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 5v14M5 12h14"/>
-          </svg>
-          Prompts
-        </label>
-        <span class="badge" id="promptCount">0</span>
-      </div>
-      <div class="add-prompt-row">
-        <textarea id="promptInput" placeholder="Type or paste a prompt, then click Add..." rows="3"></textarea>
-        <button class="btn btn-add" id="addPromptBtn" title="Add prompt">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 5v14M5 12h14"/>
-          </svg>
-        </button>
-      </div>
-      <div class="prompt-list" id="promptList">
-        <div class="empty-state" id="emptyState">
-          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#C7D2FE" stroke-width="1.5">
-            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/>
-          </svg>
-          <span>No prompts added yet</span>
-        </div>
-      </div>
-      <div class="list-actions" id="listActions" style="display: none;">
-        <button class="btn btn-clear" id="clearAllBtn">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
-          </svg>
-          Clear All
-        </button>
-        <button class="btn btn-download" id="downloadResponsesBtn">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-            <polyline points="7 10 12 15 17 10"></polyline>
-            <line x1="12" y1="15" x2="12" y2="3"></line>
-          </svg>
-          Download Responses
-        </button>
-      </div>
-    </div>
-
-
-    <div class="option-row">
-      <label class="toggle-label">
-        <span class="toggle-text">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 5v14M5 12h14"/>
-          </svg>
-          New chat per prompt
-        </span>
-        <span class="toggle-hint">Each prompt starts fresh</span>
-      </label>
-      <label class="toggle-switch">
-        <input type="checkbox" id="newChatToggle" checked>
-        <span class="toggle-slider"></span>
-      </label>
-    </div>
-
-    <div class="buttons">
-      <button id="startBtn" class="btn btn-primary">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M8 5v14l11-7z"/>
-        </svg>
-        Start
-      </button>
-      <button id="pauseBtn" class="btn btn-warning" disabled>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/>
-        </svg>
-        Pause
-      </button>
-      <button id="stopBtn" class="btn btn-danger" disabled>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
-          <path d="M18 6L6 18M6 6l12 12"/>
-        </svg>
-        Stop
-      </button>
-    </div>
-
-    </div>
-
     <div id="pro-tab" class="tab-content active">
-      <div class="pro-mode-toggle">
-        <span class="mode-label">Mode:</span>
-        <div class="segmented-control">
-          <input type="radio" id="modeAuto" name="proMode" value="auto" checked>
-          <label for="modeAuto">Automatic</label>
-          <input type="radio" id="modeManual" name="proMode" value="manual">
-          <label for="modeManual">Manual</label>
+      <div class="tab-shell">
+        <div class="tab-hero tab-hero-pro">
+          <div>
+            <span class="tab-kicker">Narrative Pipeline</span>
+            <h2>Pro Workspace</h2>
+            <p>Manage story prompts, switch full prompt presets, and run the writing pipeline from one clean workspace.</p>
+          </div>
+          <div class="hero-aside">
+            <div class="pro-mode-toggle">
+              <span class="mode-label">Mode</span>
+              <div class="segmented-control">
+                <input type="radio" id="modeAuto" name="proMode" value="auto" checked>
+                <label for="modeAuto">Automatic</label>
+                <input type="radio" id="modeManual" name="proMode" value="manual">
+                <label for="modeManual">Manual</label>
+              </div>
+            </div>
+            <div class="option-row compact">
+              <label class="toggle-label">
+                <span class="toggle-text">New chat per step</span>
+                <span class="toggle-hint">Starts fresh for each prompt run</span>
+              </label>
+              <label class="toggle-switch">
+                <input type="checkbox" id="newChatToggle" checked>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          </div>
         </div>
-      </div>
 
-      <div class="form-group">
-        <div class="label-row">
-          <label>Story Idea</label>
-        </div>
-        <textarea id="proStoryIdea" placeholder="Paste your story idea here..." rows="3"></textarea>
-      </div>
-      <div class="form-group">
-        <div class="label-row">
-          <label>Script Outliner Prompt</label>
-          <div class="action-buttons">
-            <button class="btn-play-step" id="playOutliner" style="display: none;" title="Start from here">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-            </button>
-            <button class="btn-replay-step" id="replayOutliner" style="display: none;" title="Replay only this prompt">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
-            </button>
+        <div class="surface-card preset-bar">
+          <div class="preset-bar-top">
+            <div>
+              <span class="section-eyebrow">Prompt Sets</span>
+              <label for="proPresetSelect">Prompt Preset</label>
+            </div>
+            <span class="preset-hint">Switching replaces all prompt boxes below</span>
+          </div>
+          <div class="preset-controls">
+            <select id="proPresetSelect" class="preset-select"></select>
+            <button class="btn btn-secondary btn-preset" id="newPresetBtn" type="button">New</button>
+            <button class="btn btn-secondary btn-preset" id="renamePresetBtn" type="button">Rename</button>
+            <button class="btn btn-danger-soft btn-preset" id="deletePresetBtn" type="button">Delete</button>
           </div>
         </div>
-        <textarea id="proScriptOutliner" placeholder="Enter script outliner prompt..." rows="2"></textarea>
-      </div>
-      <div class="form-group">
-        <div class="label-row">
-          <label>Story Architect Prompt</label>
-          <div class="action-buttons">
-            <button class="btn-play-step" id="playArchitect" style="display: none;" title="Start from here">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-            </button>
-            <button class="btn-replay-step" id="replayArchitect" style="display: none;" title="Replay only this prompt">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
-            </button>
+
+        <div class="surface-card section-card">
+          <div class="section-heading">
+            <div>
+              <span class="section-eyebrow">Input</span>
+              <h3>Story Foundation</h3>
+            </div>
+          </div>
+          <div class="form-group">
+            <div class="label-row">
+              <label>Story Idea</label>
+            </div>
+            <textarea id="proStoryIdea" placeholder="Paste your story idea here..." rows="4"></textarea>
           </div>
         </div>
-        <textarea id="proStoryArchitect" placeholder="Enter story architect prompt..." rows="2"></textarea>
-      </div>
-      <div class="form-group">
-        <div class="label-row">
-          <label>Script Writer Prompt</label>
-          <div class="action-buttons">
-            <button class="btn-play-step" id="playWriter" style="display: none;" title="Start from here">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-            </button>
-            <button class="btn-replay-step" id="replayWriter" style="display: none;" title="Replay only this prompt">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
-            </button>
+
+        <div class="surface-card section-card">
+          <div class="section-heading">
+            <div>
+              <span class="section-eyebrow">Core Steps</span>
+              <h3>Script Development</h3>
+            </div>
+          </div>
+          <div class="form-group">
+            <div class="label-row">
+              <label>Script Outliner Prompt</label>
+              <div class="action-buttons">
+                <button class="btn-play-step" id="playOutliner" style="display: none;" title="Start from here">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                </button>
+                <button class="btn-replay-step" id="replayOutliner" style="display: none;" title="Replay only this prompt">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                </button>
+              </div>
+            </div>
+            <textarea id="proScriptOutliner" placeholder="Enter script outliner prompt..." rows="3"></textarea>
+          </div>
+          <div class="form-group">
+            <div class="label-row">
+              <label>Story Architect Prompt</label>
+              <div class="action-buttons">
+                <button class="btn-play-step" id="playArchitect" style="display: none;" title="Start from here">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                </button>
+                <button class="btn-replay-step" id="replayArchitect" style="display: none;" title="Replay only this prompt">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                </button>
+              </div>
+            </div>
+            <textarea id="proStoryArchitect" placeholder="Enter story architect prompt..." rows="3"></textarea>
+          </div>
+          <div class="form-group">
+            <div class="label-row">
+              <label>Script Writer Prompt</label>
+              <div class="action-buttons">
+                <button class="btn-play-step" id="playWriter" style="display: none;" title="Start from here">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                </button>
+                <button class="btn-replay-step" id="replayWriter" style="display: none;" title="Replay only this prompt">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                </button>
+              </div>
+            </div>
+            <textarea id="proScriptWriter" placeholder="Enter script writer prompt..." rows="3"></textarea>
+          </div>
+          <div class="form-group">
+            <div class="label-row">
+              <label>Scene Details Prompt</label>
+              <div class="action-buttons">
+                <button class="btn-play-step" id="playScene" style="display: none;" title="Start from here">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                </button>
+                <button class="btn-replay-step" id="replayScene" style="display: none;" title="Replay only this prompt">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                </button>
+              </div>
+            </div>
+            <textarea id="proSceneDetails" placeholder="Enter scene details prompt..." rows="3"></textarea>
           </div>
         </div>
-        <textarea id="proScriptWriter" placeholder="Enter script writer prompt..." rows="2"></textarea>
-      </div>
-      <div class="form-group">
-        <div class="label-row">
-          <label>Scene Details Prompt</label>
-          <div class="action-buttons">
-            <button class="btn-play-step" id="playScene" style="display: none;" title="Start from here">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-            </button>
-            <button class="btn-replay-step" id="replayScene" style="display: none;" title="Replay only this prompt">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
-            </button>
+
+        <div class="surface-card section-card">
+          <div class="section-heading">
+            <div>
+              <span class="section-eyebrow">Support Assets</span>
+              <h3>Character and Location Generation</h3>
+            </div>
+          </div>
+          <div class="form-group">
+            <div class="label-row">
+              <label>Character Details Gen</label>
+              <div class="action-buttons">
+                <button class="btn-play-step" id="playExtraCharacter" style="display: none;" title="Start from here">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                </button>
+                <button class="btn-replay-step" id="replayExtraCharacter" style="display: none;" title="Replay only this prompt">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                </button>
+              </div>
+            </div>
+            <textarea id="extraCharacterPrompt" placeholder="Enter character details prompt..." rows="4"></textarea>
+          </div>
+          <div class="form-group">
+            <div class="label-row">
+              <label>Location Details Gen</label>
+              <div class="action-buttons">
+                <button class="btn-play-step" id="playExtraLocation" style="display: none;" title="Start from here">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                </button>
+                <button class="btn-replay-step" id="replayExtraLocation" style="display: none;" title="Replay only this prompt">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                </button>
+              </div>
+            </div>
+            <textarea id="extraLocationPrompt" placeholder="Enter location details prompt..." rows="4"></textarea>
           </div>
         </div>
-        <textarea id="proSceneDetails" placeholder="Enter scene details prompt..." rows="2"></textarea>
-      </div>
-      <div class="form-group">
-        <div class="label-row">
-          <label>Character Details gen</label>
-          <div class="action-buttons">
-            <button class="btn-play-step" id="playExtraCharacter" style="display: none;" title="Start from here">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-            </button>
-            <button class="btn-replay-step" id="replayExtraCharacter" style="display: none;" title="Replay only this prompt">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
-            </button>
-          </div>
+
+        <div class="buttons pro-actions">
+          <button id="startProBtn" class="btn btn-primary">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M8 5v14l11-7z"/>
+            </svg>
+            Start Pro Pipeline
+          </button>
+          <button id="stopProBtn" class="btn btn-danger" disabled>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+              <path d="M18 6L6 18M6 6l12 12"/>
+            </svg>
+            Stop
+          </button>
         </div>
-        <textarea id="extraCharacterPrompt" placeholder="Enter character details prompt..." rows="3"></textarea>
-      </div>
-      <div class="form-group">
-        <div class="label-row">
-          <label>Location Details gen</label>
-          <div class="action-buttons">
-            <button class="btn-play-step" id="playExtraLocation" style="display: none;" title="Start from here">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-            </button>
-            <button class="btn-replay-step" id="replayExtraLocation" style="display: none;" title="Replay only this prompt">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
-            </button>
-          </div>
-        </div>
-        <textarea id="extraLocationPrompt" placeholder="Enter location details prompt..." rows="3"></textarea>
-      </div>
-      
-      <div class="buttons">
-        <button id="startProBtn" class="btn btn-primary">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M8 5v14l11-7z"/>
-          </svg>
-          Start Pro Pipeline
-        </button>
-        <button id="stopProBtn" class="btn btn-danger" disabled>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
-            <path d="M18 6L6 18M6 6l12 12"/>
-          </svg>
-          Stop
-        </button>
       </div>
     </div>
 
     <div id="image-tab" class="tab-content">
-      <div class="form-group">
-        <div class="label-row">
-          <label>Image Prompt Gen</label>
-          <div class="action-buttons">
-            <input type="number" id="imageStartScene" placeholder="Start Scene #" min="1" style="width: 100px; padding: 4px; border-radius: 6px; border: 1.5px solid #E2E8F0; font-size: 11px;">
-            <input type="number" id="imageRerunScene" placeholder="Rerun Scene #" min="1" style="width: 100px; padding: 4px; border-radius: 6px; border: 1.5px solid #E2E8F0; font-size: 11px;">
-            <button class="btn-play-step" id="playImagePrompt" style="display: flex;" title="Start from here">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-            </button>
-            <button class="btn-replay-step" id="replayImagePrompt" style="display: flex;" title="Replay only this prompt">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
-            </button>
+      <div class="tab-shell">
+        <div class="tab-hero tab-hero-image">
+          <div>
+            <span class="tab-kicker">Visual Pipeline</span>
+            <h2>Image Workspace</h2>
+            <p>Generate scene prompts, rerun a single scene when needed, and keep character references close to the prompt builder.</p>
           </div>
         </div>
-        <textarea id="imagePromptGen" placeholder="Enter image prompt gen..." rows="4"></textarea>
-      </div>
-      <div class="form-group">
-        <div class="label-row">
-          <label>Character Ref</label>
+
+        <div class="surface-card section-card">
+          <div class="section-heading">
+            <div>
+              <span class="section-eyebrow">Controls</span>
+              <h3>Scene Range</h3>
+            </div>
+            <div class="action-buttons action-buttons-wide">
+              <button class="btn-play-step" id="playImagePrompt" style="display: flex;" title="Start from here">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+              </button>
+              <button class="btn-replay-step" id="replayImagePrompt" style="display: flex;" title="Replay only this prompt">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+              </button>
+            </div>
+          </div>
+          <div class="input-grid">
+            <div class="form-group slim">
+              <label for="imageStartScene">Start Scene</label>
+              <input type="number" id="imageStartScene" class="number-input" placeholder="1" min="1">
+            </div>
+            <div class="form-group slim">
+              <label for="imageRerunScene">Rerun Scene</label>
+              <input type="number" id="imageRerunScene" class="number-input" placeholder="Optional" min="1">
+            </div>
+          </div>
         </div>
-        <textarea id="imageCharacterRef" placeholder="Enter character ref..." rows="3"></textarea>
+
+        <div class="surface-card section-card">
+          <div class="section-heading">
+            <div>
+              <span class="section-eyebrow">Prompt</span>
+              <h3>Image Prompt Generator</h3>
+            </div>
+          </div>
+          <div class="form-group">
+            <div class="label-row">
+              <label>Image Prompt Gen</label>
+            </div>
+            <textarea id="imagePromptGen" placeholder="Enter image prompt gen..." rows="5"></textarea>
+          </div>
+          <div class="form-group">
+            <div class="label-row">
+              <label>Character Ref</label>
+            </div>
+            <textarea id="imageCharacterRef" placeholder="Enter character ref..." rows="4"></textarea>
+          </div>
+        </div>
+
+        <div class="buttons">
+          <button id="stopImageBtn" class="btn btn-danger" disabled>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+              <path d="M18 6L6 18M6 6l12 12"/>
+            </svg>
+            Stop
+          </button>
+        </div>
       </div>
-      <div class="buttons">
-        <button id="stopImageBtn" class="btn btn-danger" disabled>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
-            <path d="M18 6L6 18M6 6l12 12"/>
-          </svg>
-          Stop
-        </button>
+    </div>
+
+    <div class="legacy-lite" aria-hidden="true">
+      <textarea id="systemPrompt"></textarea>
+      <textarea id="promptInput"></textarea>
+      <div id="promptList">
+        <div id="emptyState"></div>
       </div>
+      <span id="promptCount"></span>
+      <div id="listActions"></div>
+      <button id="addPromptBtn" type="button"></button>
+      <button id="clearAllBtn" type="button"></button>
+      <button id="startBtn" type="button"></button>
+      <button id="pauseBtn" type="button"></button>
+      <button id="stopBtn" type="button"></button>
+      <button id="downloadResponsesBtn" type="button"></button>
     </div>
 
     <div id="geminiWarning" class="gemini-warning" style="display: none;">
