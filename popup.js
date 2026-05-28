@@ -16,6 +16,7 @@ const progressLabel = document.getElementById('progressLabel');
 const progressPercent = document.getElementById('progressPercent');
 const progressFill = document.getElementById('progressFill');
 const logOutput = document.getElementById('logOutput');
+const clearLogBtn = document.getElementById('clearLogBtn');
 const geminiWarning = document.getElementById('geminiWarning');
 const openGeminiBtn = document.getElementById('openGeminiBtn');
 const newChatToggle = document.getElementById('newChatToggle');
@@ -25,6 +26,9 @@ const settingsBtn = document.getElementById('settingsBtn');
 const settingsPanel = document.getElementById('settingsPanel');
 const tabBtns = document.querySelectorAll('.tab-btn');
 const tabContents = document.querySelectorAll('.tab-content');
+const stepCheckboxEls = document.querySelectorAll('.step-check');
+const stepToggleBtns = document.querySelectorAll('.btn-edit-step');
+const promptStepEls = document.querySelectorAll('.prompt-step');
 
 // Pro mode elements
 const proStoryIdeaEl = document.getElementById('proStoryIdea');
@@ -36,24 +40,9 @@ const startProBtn = document.getElementById('startProBtn');
 const stopProBtn = document.getElementById('stopProBtn');
 const proPresetSelectEl = document.getElementById('proPresetSelect');
 const newPresetBtn = document.getElementById('newPresetBtn');
-const renamePresetBtn = document.getElementById('renamePresetBtn');
 const deletePresetBtn = document.getElementById('deletePresetBtn');
 
-// Manual mode elements
 const modeRadios = document.getElementsByName('proMode');
-const playOutlinerBtn = document.getElementById('playOutliner');
-const playArchitectBtn = document.getElementById('playArchitect');
-const playWriterBtn = document.getElementById('playWriter');
-const playSceneBtn = document.getElementById('playScene');
-const playExtraCharacterBtn = document.getElementById('playExtraCharacter');
-const playExtraLocationBtn = document.getElementById('playExtraLocation');
-
-const replayOutlinerBtn = document.getElementById('replayOutliner');
-const replayArchitectBtn = document.getElementById('replayArchitect');
-const replayWriterBtn = document.getElementById('replayWriter');
-const replaySceneBtn = document.getElementById('replayScene');
-const replayExtraCharacterBtn = document.getElementById('replayExtraCharacter');
-const replayExtraLocationBtn = document.getElementById('replayExtraLocation');
 
 // Extra tab elements (removed)
 const extraCharacterPromptEl = document.getElementById('extraCharacterPrompt');
@@ -66,21 +55,18 @@ const imageStartSceneEl = document.getElementById('imageStartScene');
 const imageRerunSceneEl = document.getElementById('imageRerunScene');
 const imageCharacterRefEl = document.getElementById('imageCharacterRef');
 
-const stepPlayBtns = [
-  playOutlinerBtn, playArchitectBtn, playWriterBtn, playSceneBtn, playExtraCharacterBtn, playExtraLocationBtn
+const PRO_MODE_STORAGE_KEY = 'proMode';
+const ACTIVE_TAB_STORAGE_KEY = 'activeWorkspaceTab';
+const PRO_SELECTED_STEPS_STORAGE_KEY = 'proSelectedSteps';
+const PRO_EXPANDED_STEPS_STORAGE_KEY = 'proExpandedSteps';
+const STEP_ORDER = [
+  'script_outliner',
+  'story_architect',
+  'script_writer',
+  'scene_details',
+  'extra_character',
+  'extra_location'
 ];
-const stepReplayBtns = [
-  replayOutlinerBtn, replayArchitectBtn, replayWriterBtn, replaySceneBtn, replayExtraCharacterBtn, replayExtraLocationBtn
-];
-
-Array.from(modeRadios).forEach(radio => {
-  radio.addEventListener('change', (e) => {
-    const isManual = e.target.value === 'manual';
-    stepPlayBtns.forEach(btn => { if (btn) btn.style.display = isManual ? 'flex' : 'none'; });
-    stepReplayBtns.forEach(btn => { if (btn) btn.style.display = isManual ? 'flex' : 'none'; });
-    if (startProBtn) startProBtn.style.display = isManual ? 'none' : 'flex';
-  });
-});
 
 async function fetchColumnFromSheet(column) {
   const url = webhookUrlEl.value.trim();
@@ -99,6 +85,15 @@ async function fetchColumnFromSheet(column) {
   }
 }
 
+function normalizeSheetRow(row) {
+  if (row && typeof row === 'object' && row.row != null) {
+    row = row.row;
+  }
+
+  const normalized = Number.parseInt(row, 10);
+  return Number.isFinite(normalized) && normalized > 0 ? normalized : null;
+}
+
 async function saveSheetCell(column, row, response) {
   const url = webhookUrlEl.value.trim();
   if (!url || !url.startsWith('https://script.google.com')) {
@@ -106,15 +101,81 @@ async function saveSheetCell(column, row, response) {
     return false;
   }
 
+  const normalizedRow = normalizeSheetRow(row);
+  if (!normalizedRow) {
+    log(`Invalid sheet row for ${column}: ${JSON.stringify(row)}`, 'error');
+    return false;
+  }
+
   try {
-    await fetch(url, {
+    const res = await fetch(url, {
       method: 'POST',
-      body: JSON.stringify({ mode: 'pro', column, row, response })
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode: 'pro', column, row: normalizedRow, response })
     });
+    const text = await res.text();
+    if (!res.ok || !/success/i.test(text)) {
+      throw new Error(text || `HTTP ${res.status}`);
+    }
     return true;
   } catch (err) {
     log(`Error saving to ${column}${row}: ${err.message}`, 'error');
     return false;
+  }
+}
+
+async function saveSheetBatch(column, entries) {
+  const url = webhookUrlEl.value.trim();
+  if (!url || !url.startsWith('https://script.google.com')) {
+    log('Valid Google Sheets Webhook URL is required.', 'error');
+    return false;
+  }
+
+  if (!Array.isArray(entries) || entries.length === 0) {
+    return true;
+  }
+
+  const normalizedEntries = entries.map(entry => ({
+    row: normalizeSheetRow(entry.row),
+    response: entry.response
+  }));
+
+  const invalidEntry = normalizedEntries.find(entry => !entry.row);
+  if (invalidEntry) {
+    log(`Invalid batch row for ${column}: ${JSON.stringify(invalidEntry)}`, 'error');
+    return false;
+  }
+
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        mode: 'pro',
+        batch: normalizedEntries.map(entry => ({
+          column,
+          row: entry.row,
+          response: entry.response
+        }))
+      })
+    });
+    const text = await res.text();
+    if (!res.ok || !/success/i.test(text)) {
+      throw new Error(text || `HTTP ${res.status}`);
+    }
+    return true;
+  } catch (err) {
+    log(`Batch save failed for column ${column}: ${err.message}`, 'warning');
+    log(`Falling back to single-cell saves for column ${column}...`, 'info');
+
+    let allSaved = true;
+    for (const entry of normalizedEntries) {
+      const saved = await saveSheetCell(column, entry.row, entry.response);
+      if (!saved) {
+        allSaved = false;
+      }
+    }
+    return allSaved;
   }
 }
 
@@ -155,14 +216,115 @@ let activeProPresetId = '';
 let isApplyingProPreset = false;
 let proPresetSaveTimer = null;
 
+function getProMode() {
+  const selected = Array.from(modeRadios).find(radio => radio.checked);
+  return selected ? selected.value : 'auto';
+}
+
+function setProMode(mode, persist = true) {
+  const nextMode = mode === 'manual' ? 'manual' : 'auto';
+  Array.from(modeRadios).forEach(radio => {
+    radio.checked = radio.value === nextMode;
+  });
+  updateProButtons();
+  if (persist) {
+    chrome.storage.local.set({ [PRO_MODE_STORAGE_KEY]: nextMode });
+  }
+}
+
+function getSelectedProSteps() {
+  return Array.from(stepCheckboxEls)
+    .filter(checkbox => checkbox.checked)
+    .map(checkbox => checkbox.dataset.step)
+    .filter(Boolean);
+}
+
+function applySelectedProSteps(stepIds = [], persist = true) {
+  const selected = new Set(stepIds);
+  stepCheckboxEls.forEach(checkbox => {
+    checkbox.checked = selected.has(checkbox.dataset.step);
+  });
+  updateProButtons();
+  if (persist) {
+    chrome.storage.local.set({ [PRO_SELECTED_STEPS_STORAGE_KEY]: getSelectedProSteps() });
+  }
+}
+
+function applyExpandedSteps(stepIds = [], persist = true) {
+  const expanded = new Set(stepIds);
+  promptStepEls.forEach(stepEl => {
+    stepEl.classList.toggle('expanded', expanded.has(stepEl.dataset.step));
+  });
+  if (persist) {
+    const openSteps = Array.from(promptStepEls)
+      .filter(stepEl => stepEl.classList.contains('expanded'))
+      .map(stepEl => stepEl.dataset.step);
+    chrome.storage.local.set({ [PRO_EXPANDED_STEPS_STORAGE_KEY]: openSteps });
+  }
+}
+
+function setActiveTab(tabId, persist = true) {
+  tabBtns.forEach(btn => {
+    btn.classList.toggle('active', btn.getAttribute('data-tab') === tabId);
+  });
+  tabContents.forEach(content => {
+    content.classList.toggle('active', content.id === `${tabId}-tab`);
+  });
+  if (persist) {
+    chrome.storage.local.set({ [ACTIVE_TAB_STORAGE_KEY]: tabId });
+  }
+}
+
+function updateProRunButtonLabel() {
+  if (!startProBtn) return;
+  const mode = getProMode();
+  const selectedCount = getSelectedProSteps().length;
+  const label = startProBtn.lastChild && startProBtn.lastChild.nodeType === Node.TEXT_NODE
+    ? startProBtn.lastChild
+    : null;
+
+  let nextText = ' Start Pro Pipeline';
+  if (mode === 'manual') {
+    nextText = selectedCount === 1 ? ' Replay Selected Step' : ' Run Selected Steps';
+  }
+
+  if (label) {
+    label.textContent = nextText;
+  } else {
+    startProBtn.append(document.createTextNode(nextText));
+  }
+}
+
 tabBtns.forEach(btn => {
   btn.addEventListener('click', () => {
-    tabBtns.forEach(b => b.classList.remove('active'));
-    tabContents.forEach(c => c.classList.remove('active'));
-    
-    btn.classList.add('active');
     const tabId = btn.getAttribute('data-tab');
-    document.getElementById(`${tabId}-tab`).classList.add('active');
+    setActiveTab(tabId);
+  });
+});
+
+Array.from(modeRadios).forEach(radio => {
+  radio.addEventListener('change', () => {
+    setProMode(radio.value);
+  });
+});
+
+stepCheckboxEls.forEach(checkbox => {
+  checkbox.addEventListener('change', () => {
+    applySelectedProSteps(getSelectedProSteps());
+  });
+});
+
+stepToggleBtns.forEach(button => {
+  button.addEventListener('click', () => {
+    const stepId = button.dataset.toggleStep;
+    const stepEl = document.querySelector(`.prompt-step[data-step="${stepId}"]`);
+    if (!stepEl) return;
+    stepEl.classList.toggle('expanded');
+    applyExpandedSteps(
+      Array.from(promptStepEls)
+        .filter(item => item.classList.contains('expanded'))
+        .map(item => item.dataset.step)
+    );
   });
 });
 
@@ -177,6 +339,7 @@ if (settingsBtn && settingsPanel) {
 }
 
 function log(message, type = 'info') {
+  if (!logOutput) return;
   const now = new Date();
   const time = now.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
   const entry = document.createElement('div');
@@ -215,6 +378,7 @@ function restoreLogs() {
   try {
     chrome.storage.local.get('logEntries', (data) => {
       const entries = data.logEntries || [];
+      if (!logOutput) return;
       logOutput.innerHTML = '';
       entries.forEach(e => {
         const entry = document.createElement('div');
@@ -234,9 +398,20 @@ function restoreLogs() {
 }
 
 function setStatus(text, state) {
-  statusText.textContent = text;
-  statusDot.className = 'status-indicator ' + state;
+  if (statusText) {
+    statusText.textContent = text;
+  }
+  if (statusDot) {
+    statusDot.className = 'status-indicator ' + state;
+  }
   chrome.storage.local.set({ statusText: text, statusState: state });
+}
+
+function clearActivityLog() {
+  if (logOutput) {
+    logOutput.innerHTML = '';
+  }
+  chrome.storage.local.remove('logEntries');
 }
 
 function updateProgress(current, total) {
@@ -468,7 +643,6 @@ function renderProPresetOptions() {
 
   const hasMultiplePresets = presetList.length > 1;
   if (deletePresetBtn) deletePresetBtn.disabled = !hasMultiplePresets;
-  if (renamePresetBtn) renamePresetBtn.disabled = presetList.length === 0;
 }
 
 async function persistProPresetState() {
@@ -622,6 +796,188 @@ function initializeProPresets(data) {
   };
   activeProPresetId = storiesPresetId;
   renderProPresetOptions();
+}
+
+function createBaseProState(overrides = {}) {
+  return {
+    active: true,
+    step: '',
+    episodes: [],
+    currentEpisodeIndex: 0,
+    scriptWriterResponses: [],
+    currentSceneIndex: 0,
+    globalSceneOutputIndex: 0,
+    selectedSteps: [],
+    selectedStepIndex: 0,
+    runMode: 'auto',
+    singleStep: false,
+    ...overrides
+  };
+}
+
+function finishProRun(message) {
+  if (message) {
+    log(message, 'success');
+  }
+  proState.active = false;
+  saveProState();
+}
+
+function dispatchSelectedProStep(stepName) {
+  if (!stepName) {
+    finishProRun('Selected steps complete.');
+    return;
+  }
+
+  if (stepName === 'script_outliner') {
+    const storyIdea = proStoryIdeaEl.value.trim();
+    const scriptOutliner = proScriptOutlinerEl.value.trim();
+    if (!storyIdea || !scriptOutliner) {
+      finishProRun('');
+      log('Story Idea and Script Outliner prompt are required.', 'error');
+      return;
+    }
+
+    proState.step = 'script_outliner';
+    saveProState();
+    const fullPrompt = `${scriptOutliner}\n\n${storyIdea}`;
+    log('Running Script Outliner...', 'running');
+    sendMessageToContentScript('run_single', {
+      prompt: fullPrompt,
+      stepName: 'script_outliner',
+      isNewChat: newChatToggle.checked,
+      meta: { row: 1, col: 'A' }
+    });
+    return;
+  }
+
+  if (stepName === 'story_architect') {
+    (async () => {
+      const data = await fetchColumnFromSheet('A');
+      if (!data || !data[0]) {
+        finishProRun('');
+        log('No data found in Column A for Story Architect', 'error');
+        return;
+      }
+      const architectPrompt = proStoryArchitectEl.value.trim();
+      if (!architectPrompt) {
+        finishProRun('');
+        log('Story Architect prompt missing.', 'error');
+        return;
+      }
+      proState.step = 'story_architect';
+      saveProState();
+      const fullPrompt = `${architectPrompt}\n\n${data[0]}`;
+      log('Running Story Architect...', 'running');
+      sendMessageToContentScript('run_single', {
+        prompt: fullPrompt,
+        stepName: 'story_architect',
+        isNewChat: newChatToggle.checked,
+        meta: { row: 1, col: 'B' }
+      });
+    })();
+    return;
+  }
+
+  if (stepName === 'script_writer') {
+    (async () => {
+      let data = await fetchColumnFromSheet('B');
+      if (!data || data.length === 0) {
+        finishProRun('');
+        log('No data found in Column B for Script Writer', 'error');
+        return;
+      }
+      data = data.filter(d => d && d.trim().length > 0);
+      if (data.length === 0) {
+        finishProRun('');
+        log('No episodes found in Column B', 'error');
+        return;
+      }
+      proState = createBaseProState({
+        ...proState,
+        active: true,
+        step: 'script_writer',
+        episodes: data,
+        scriptWriterResponses: [],
+        currentEpisodeIndex: 0
+      });
+      saveProState();
+      log(`Running Script Writer with ${data.length} episode(s)...`, 'running');
+      runNextScriptWriter();
+    })();
+    return;
+  }
+
+  if (stepName === 'scene_details') {
+    (async () => {
+      let data = await fetchColumnFromSheet('C');
+      if (!data || data.length === 0) {
+        finishProRun('');
+        log('No data found in Column C for Scene Details', 'error');
+        return;
+      }
+      data = data.filter(d => d && d.trim().length > 0);
+      if (data.length === 0) {
+        finishProRun('');
+        log('No script outputs found in Column C', 'error');
+        return;
+      }
+      proState = createBaseProState({
+        ...proState,
+        active: true,
+        step: 'scene_details',
+        scriptWriterResponses: data,
+        currentSceneIndex: 0
+      });
+      saveProState();
+      log(`Running Scene Details with ${data.length} script output(s)...`, 'running');
+      runNextSceneDetails();
+    })();
+    return;
+  }
+
+  if (stepName === 'extra_character') {
+    proState.step = 'extra_character';
+    saveProState();
+    runExtraCharacter();
+    return;
+  }
+
+  if (stepName === 'extra_location') {
+    proState.step = 'extra_location';
+    saveProState();
+    runExtraLocation();
+  }
+}
+
+function advanceSelectedProStep() {
+  if (!proState.active) return;
+  const selectedSteps = Array.isArray(proState.selectedSteps) ? proState.selectedSteps : [];
+  const nextIndex = (proState.selectedStepIndex || 0) + 1;
+  if (nextIndex >= selectedSteps.length) {
+    finishProRun('Selected steps complete.');
+    return;
+  }
+  proState.selectedStepIndex = nextIndex;
+  saveProState();
+  dispatchSelectedProStep(selectedSteps[nextIndex]);
+}
+
+function startSelectedProRun(stepIds) {
+  if (!Array.isArray(stepIds) || stepIds.length === 0) {
+    log('Select at least one prompt step to run.', 'warning');
+    return;
+  }
+
+  proState = createBaseProState({
+    step: stepIds[0],
+    selectedSteps: stepIds,
+    selectedStepIndex: 0,
+    runMode: 'selected',
+    singleStep: stepIds.length === 1
+  });
+  saveProState();
+  dispatchSelectedProStep(stepIds[0]);
 }
 
 addPromptBtn.addEventListener('click', () => {
@@ -846,6 +1202,10 @@ chrome.runtime.onMessage.addListener((message) => {
     if (!proState.active) return;
 
     if (stepName === 'script_outliner') {
+      if (proState.runMode === 'selected') {
+        advanceSelectedProStep();
+        return;
+      }
       const architectPrompt = proStoryArchitectEl.value.trim();
       if (!architectPrompt) {
         log('Story Architect prompt missing.', 'warning');
@@ -870,23 +1230,21 @@ chrome.runtime.onMessage.addListener((message) => {
       
       (async () => {
         if (webhookUrl && webhookUrl.startsWith('https://script.google.com')) {
-          for (let idx = 0; idx < episodes.length; idx++) {
-            const ep = episodes[idx];
-            try {
-              await fetch(webhookUrl, {
-                method: 'POST',
-                body: JSON.stringify({ mode: 'pro', column: 'B', row: idx + 1, response: ep })
-              });
-              log(`Saved Episode to B${idx + 1}`, 'success');
-            } catch (err) {
-              log(`Error saving to B${idx + 1}: ${err.message}`, 'error');
-            }
+          const batchEntries = episodes.map((ep, idx) => ({
+            row: idx + 1,
+            response: ep
+          }));
+          const saved = await saveSheetBatch('B', batchEntries);
+          if (saved) {
+            log(`Saved ${batchEntries.length} episode(s) to column B`, 'success');
           }
         }
         if (proState.singleStep) {
-          log('Story Architect complete.', 'success');
-          proState.active = false;
-          saveProState();
+          if (proState.runMode === 'selected') {
+            advanceSelectedProStep();
+            return;
+          }
+          finishProRun('Story Architect complete.');
           return;
         }
         proState.step = 'script_writer';
@@ -906,18 +1264,16 @@ chrome.runtime.onMessage.addListener((message) => {
 
       (async () => {
         if (webhookUrl && webhookUrl.startsWith('https://script.google.com')) {
-          for (const sc of scenes) {
+          const batchEntries = scenes.map(sc => {
             proState.globalSceneOutputIndex = (proState.globalSceneOutputIndex || 0) + 1;
-            const row = proState.globalSceneOutputIndex;
-            try {
-              await fetch(webhookUrl, {
-                method: 'POST',
-                body: JSON.stringify({ mode: 'pro', column: 'D', row: row, response: sc })
-              });
-              log(`Saved to D${row}`, 'success');
-            } catch (err) {
-              log(`Error saving to D${row}: ${err.message}`, 'error');
-            }
+            return {
+              row: proState.globalSceneOutputIndex,
+              response: sc
+            };
+          });
+          const saved = await saveSheetBatch('D', batchEntries);
+          if (saved) {
+            log(`Saved ${batchEntries.length} scene detail(s) to column D`, 'success');
           }
         }
         proState.currentSceneIndex++;
@@ -933,22 +1289,21 @@ chrome.runtime.onMessage.addListener((message) => {
 
       (async () => {
         if (webhookUrl && webhookUrl.startsWith('https://script.google.com')) {
-          for (let i = 0; i < items.length; i++) {
-            try {
-              await fetch(webhookUrl, {
-                method: 'POST',
-                body: JSON.stringify({ mode: 'pro', column: 'E', row: i + 1, response: items[i] })
-              });
-              log(`Saved to E${i + 1}`, 'success');
-            } catch (err) {
-              log(`Error saving to E${i + 1}: ${err.message}`, 'error');
-            }
+          const batchEntries = items.map((item, i) => ({
+            row: i + 1,
+            response: item
+          }));
+          const saved = await saveSheetBatch('E', batchEntries);
+          if (saved) {
+            log(`Saved ${batchEntries.length} character detail(s) to column E`, 'success');
           }
         }
         if (proState.singleStep) {
-          log('Character Details complete.', 'success');
-          proState.active = false;
-          saveProState();
+          if (proState.runMode === 'selected') {
+            advanceSelectedProStep();
+            return;
+          }
+          finishProRun('Character Details complete.');
           return;
         }
         proState.step = 'extra_location';
@@ -964,20 +1319,20 @@ chrome.runtime.onMessage.addListener((message) => {
 
       (async () => {
         if (webhookUrl && webhookUrl.startsWith('https://script.google.com')) {
-          for (let i = 0; i < items.length; i++) {
-            try {
-              await fetch(webhookUrl, {
-                method: 'POST',
-                body: JSON.stringify({ mode: 'pro', column: 'F', row: i + 1, response: items[i] })
-              });
-              log(`Saved to F${i + 1}`, 'success');
-            } catch (err) {
-              log(`Error saving to F${i + 1}: ${err.message}`, 'error');
-            }
+          const batchEntries = items.map((item, i) => ({
+            row: i + 1,
+            response: item
+          }));
+          const saved = await saveSheetBatch('F', batchEntries);
+          if (saved) {
+            log(`Saved ${batchEntries.length} location detail(s) to column F`, 'success');
           }
         }
-        proState.active = false;
-        saveProState();
+        if (proState.runMode === 'selected') {
+          advanceSelectedProStep();
+          return;
+        }
+        finishProRun('Location Details complete.');
       })();
     } else if (stepName === 'image_prompt') {
       const prompts = (response || '').split(/\n\s*\n/).map(s => s.trim()).filter(s => s.length > 0);
@@ -985,6 +1340,7 @@ chrome.runtime.onMessage.addListener((message) => {
 
       (async () => {
         if (webhookUrl && webhookUrl.startsWith('https://script.google.com')) {
+          const batchEntries = [];
           for (let i = 0; i < prompts.length; i++) {
             const sceneNumber = proState.imageRerunScene || (proState.currentImageIndex + 1);
             const promptNumber = i + 1;
@@ -1002,12 +1358,13 @@ chrome.runtime.onMessage.addListener((message) => {
               row = proState.globalImageOutputIndex;
             }
 
-            try {
-              await saveSheetCell('G', row, promptText);
-              log(`Saved Image Prompt to G${row}`, 'success');
-            } catch (err) {
-              log(`Error saving to G${row}: ${err.message}`, 'error');
-            }
+            batchEntries.push({ row, response: promptText });
+          }
+
+          const saved = await saveSheetBatch('G', batchEntries);
+          if (saved) {
+            const rowsLabel = batchEntries.map(entry => `G${entry.row}`).join(', ');
+            log(`Saved ${batchEntries.length} image prompt(s) to ${rowsLabel}`, 'success');
           }
         }
         
@@ -1072,7 +1429,8 @@ async function loadSavedSettings() {
     'systemPrompt', 'newChat', 'webhookUrl', 
     'proStoryIdea', 'proScriptOutliner', 'proStoryArchitect', 'proScriptWriter', 'proSceneDetails', 'proState',
     'extraCharacterPrompt', 'extraLocationPrompt', 'imagePromptGen', 'imageStartScene', 'imageRerunScene', 'imageCharacterRef',
-    PRO_PRESET_STORAGE_KEY, ACTIVE_PRO_PRESET_STORAGE_KEY
+    PRO_PRESET_STORAGE_KEY, ACTIVE_PRO_PRESET_STORAGE_KEY,
+    PRO_MODE_STORAGE_KEY, ACTIVE_TAB_STORAGE_KEY, PRO_SELECTED_STEPS_STORAGE_KEY, PRO_EXPANDED_STEPS_STORAGE_KEY
   ]);
   
   if (data.systemPrompt) systemPromptEl.value = data.systemPrompt;
@@ -1093,10 +1451,21 @@ async function loadSavedSettings() {
   if (data.imageRerunScene && imageRerunSceneEl) imageRerunSceneEl.value = data.imageRerunScene;
   if (data.imageCharacterRef && imageCharacterRefEl) imageCharacterRefEl.value = data.imageCharacterRef;
   initializeProPresets(data);
+  setProMode(data[PRO_MODE_STORAGE_KEY] || 'auto', false);
+  applySelectedProSteps(data[PRO_SELECTED_STEPS_STORAGE_KEY] || [], false);
+  applyExpandedSteps(data[PRO_EXPANDED_STEPS_STORAGE_KEY] || [], false);
+  setActiveTab(data[ACTIVE_TAB_STORAGE_KEY] || 'pro', false);
+  updateProRunButtonLabel();
 
   if (webhookUrlEl) {
     webhookUrlEl.addEventListener('change', () => {
       chrome.storage.local.set({ webhookUrl: webhookUrlEl.value.trim() });
+    });
+  }
+
+  if (newChatToggle) {
+    newChatToggle.addEventListener('change', () => {
+      chrome.storage.local.set({ newChat: newChatToggle.checked });
     });
   }
 
@@ -1130,12 +1499,14 @@ async function loadSavedSettings() {
     newPresetBtn.addEventListener('click', createNewProPreset);
   }
 
-  if (renamePresetBtn) {
-    renamePresetBtn.addEventListener('click', renameActiveProPreset);
-  }
-
   if (deletePresetBtn) {
     deletePresetBtn.addEventListener('click', deleteActiveProPreset);
+  }
+
+  if (clearLogBtn) {
+    clearLogBtn.addEventListener('click', () => {
+      clearActivityLog();
+    });
   }
 
   await persistProPresetState();
@@ -1179,13 +1550,22 @@ if (downloadResponsesBtn) {
 }
 
 function updateProButtons() {
-  if (startProBtn) startProBtn.disabled = proState.active;
+  if (startProBtn) {
+    const isManual = getProMode() === 'manual';
+    startProBtn.disabled = proState.active || (isManual && getSelectedProSteps().length === 0);
+  }
   if (stopProBtn) stopProBtn.disabled = !proState.active;
   if (stopImageBtn) stopImageBtn.disabled = !proState.active;
+  updateProRunButtonLabel();
 }
 
 if (startProBtn) {
   startProBtn.addEventListener('click', async () => {
+    if (getProMode() === 'manual') {
+      startSelectedProRun(getSelectedProSteps());
+      return;
+    }
+
     const storyIdea = proStoryIdeaEl.value.trim();
     const scriptOutliner = proScriptOutlinerEl.value.trim();
     
@@ -1199,17 +1579,11 @@ if (startProBtn) {
       return;
     }
     
-    proState = {
-      active: true,
+    proState = createBaseProState({
       step: 'script_outliner',
-      episodes: [],
-      currentEpisodeIndex: 0,
-      scriptWriterResponses: [],
-      currentSceneIndex: 0,
-      globalSceneOutputIndex: 0
-    };
-    chrome.storage.local.set({ proState });
-    updateProButtons();
+      runMode: 'auto'
+    });
+    saveProState();
     
     const fullPrompt = `${scriptOutliner}\n\n${storyIdea}`;
     log('Starting Pro Pipeline: Script Outliner...', 'running');
@@ -1220,12 +1594,6 @@ if (startProBtn) {
       isNewChat: newChatToggle.checked,
       meta: { row: 1, col: 'A' }
     });
-  });
-}
-
-if (playOutlinerBtn) {
-  playOutlinerBtn.addEventListener('click', () => {
-    if (startProBtn) startProBtn.click();
   });
 }
 
@@ -1249,67 +1617,6 @@ if (stopImageBtn) {
   });
 }
 
-if (playArchitectBtn) {
-  playArchitectBtn.addEventListener('click', async () => {
-    const data = await fetchColumnFromSheet('A');
-    if (!data || !data[0]) return log('No data found in Column A for Architect', 'error');
-    
-    proState = {
-      active: true, step: 'story_architect', episodes: [],
-      currentEpisodeIndex: 0, scriptWriterResponses: [], currentSceneIndex: 0
-    };
-    saveProState();
-    
-    const architectPrompt = proStoryArchitectEl.value.trim();
-    if (!architectPrompt) return log('Story Architect prompt missing.', 'error');
-    const fullPrompt = `${architectPrompt}\n\n${data[0]}`;
-    log('Manual Start: Story Architect...', 'running');
-    sendMessageToContentScript('run_single', {
-      prompt: fullPrompt, stepName: 'story_architect',
-      isNewChat: newChatToggle.checked, meta: { row: 1, col: 'B' }
-    });
-  });
-}
-
-if (playWriterBtn) {
-  playWriterBtn.addEventListener('click', async () => {
-    let data = await fetchColumnFromSheet('B');
-    if (!data || data.length === 0) return log('No data found in Column B for Script Writer', 'error');
-    
-    // Filter out empty rows
-    data = data.filter(d => d && d.trim().length > 0);
-    if (data.length === 0) return log('No episodes found in Column B', 'error');
-
-    proState = {
-      active: true, step: 'script_writer', episodes: data,
-      currentEpisodeIndex: 0, scriptWriterResponses: [], currentSceneIndex: 0,
-      globalSceneOutputIndex: 0
-    };
-    saveProState();
-    log(`Manual Start: Script Writer with ${data.length} episodes...`, 'running');
-    runNextScriptWriter();
-  });
-}
-
-if (playSceneBtn) {
-  playSceneBtn.addEventListener('click', async () => {
-    let data = await fetchColumnFromSheet('C');
-    if (!data || data.length === 0) return log('No data found in Column C for Scene Details', 'error');
-    
-    data = data.filter(d => d && d.trim().length > 0);
-    if (data.length === 0) return log('No script outputs found in Column C', 'error');
-
-    proState = {
-      active: true, step: 'scene_details', episodes: [],
-      currentEpisodeIndex: 0, scriptWriterResponses: data, currentSceneIndex: 0,
-      globalSceneOutputIndex: 0
-    };
-    saveProState();
-    log(`Manual Start: Scene Details with ${data.length} scenes...`, 'running');
-    runNextSceneDetails();
-  });
-}
-
 function saveProState() {
   chrome.storage.local.set({ proState });
   updateProButtons();
@@ -1320,9 +1627,11 @@ function runNextScriptWriter() {
   const idx = proState.currentEpisodeIndex;
   if (idx >= proState.episodes.length) {
     if (proState.singleStep) {
-      log('Script Writer complete.', 'success');
-      proState.active = false;
-      saveProState();
+      if (proState.runMode === 'selected') {
+        advanceSelectedProStep();
+        return;
+      }
+      finishProRun('Script Writer complete.');
       return;
     }
     proState.step = 'scene_details';
@@ -1356,9 +1665,11 @@ function runNextSceneDetails() {
   const idx = proState.currentSceneIndex;
   if (idx >= proState.scriptWriterResponses.length) {
     if (proState.singleStep) {
-      log('Scene Details complete.', 'success');
-      proState.active = false;
-      saveProState();
+      if (proState.runMode === 'selected') {
+        advanceSelectedProStep();
+        return;
+      }
+      finishProRun('Scene Details complete.');
       return;
     }
     proState.step = 'extra_character';
@@ -1389,14 +1700,23 @@ function runNextSceneDetails() {
 async function runExtraCharacter() {
   if (!proState.active) return;
   let data = await fetchColumnFromSheet('D');
-  if (!data || data.length === 0) return log('No data found in Column D', 'error');
+  if (!data || data.length === 0) {
+    finishProRun('');
+    return log('No data found in Column D', 'error');
+  }
   
   data = data.filter(d => d && d.trim().length > 0);
-  if (data.length === 0) return log('No scene details found in Column D', 'error');
+  if (data.length === 0) {
+    finishProRun('');
+    return log('No scene details found in Column D', 'error');
+  }
   
   const combinedData = data.join('\n\n');
   const prompt = extraCharacterPromptEl.value.trim();
-  if (!prompt) return log('Character Details prompt missing.', 'error');
+  if (!prompt) {
+    finishProRun('');
+    return log('Character Details prompt missing.', 'error');
+  }
   
   const fullPrompt = `${prompt}\n\n${combinedData}`;
   log(`Running Character Details Gen...`, 'running');
@@ -1409,134 +1729,29 @@ async function runExtraCharacter() {
 async function runExtraLocation() {
   if (!proState.active) return;
   let data = await fetchColumnFromSheet('D');
-  if (!data || data.length === 0) return log('No data found in Column D', 'error');
+  if (!data || data.length === 0) {
+    finishProRun('');
+    return log('No data found in Column D', 'error');
+  }
   
   data = data.filter(d => d && d.trim().length > 0);
-  if (data.length === 0) return log('No scene details found in Column D', 'error');
+  if (data.length === 0) {
+    finishProRun('');
+    return log('No scene details found in Column D', 'error');
+  }
   
   const combinedData = data.join('\n\n');
   const prompt = extraLocationPromptEl.value.trim();
-  if (!prompt) return log('Location Details prompt missing.', 'error');
+  if (!prompt) {
+    finishProRun('');
+    return log('Location Details prompt missing.', 'error');
+  }
   
   const fullPrompt = `${prompt}\n\n${combinedData}`;
   log(`Running Location Details Gen...`, 'running');
   sendMessageToContentScript('run_single', {
     prompt: fullPrompt, stepName: 'extra_location',
     isNewChat: newChatToggle.checked, meta: { col: 'F' }
-  });
-}
-
-if (playExtraCharacterBtn) {
-  playExtraCharacterBtn.addEventListener('click', async () => {
-    proState = { active: true, step: 'extra_character', singleStep: false };
-    saveProState();
-    runExtraCharacter();
-  });
-}
-
-if (playExtraLocationBtn) {
-  playExtraLocationBtn.addEventListener('click', async () => {
-    proState = { active: true, step: 'extra_location', singleStep: false };
-    saveProState();
-    runExtraLocation();
-  });
-}
-
-if (replayOutlinerBtn) {
-  replayOutlinerBtn.addEventListener('click', async () => {
-    proState = {
-      active: true, step: 'script_outliner', singleStep: true,
-      episodes: [], currentEpisodeIndex: 0, scriptWriterResponses: [],
-      currentSceneIndex: 0, globalSceneOutputIndex: 0
-    };
-    saveProState();
-    
-    const storyIdea = proStoryIdeaEl.value.trim();
-    const scriptOutliner = proScriptOutlinerEl.value.trim();
-    if (!storyIdea || !scriptOutliner) return log('Story Idea and Script Outliner required.', 'error');
-    
-    const fullPrompt = `${scriptOutliner}\n\n${storyIdea}`;
-    log('Replaying Script Outliner...', 'running');
-    sendMessageToContentScript('run_single', {
-      prompt: fullPrompt, stepName: 'script_outliner',
-      isNewChat: newChatToggle.checked, meta: { row: 1, col: 'A' }
-    });
-  });
-}
-
-if (replayArchitectBtn) {
-  replayArchitectBtn.addEventListener('click', async () => {
-    const data = await fetchColumnFromSheet('A');
-    if (!data || !data[0]) return log('No data found in Column A for Architect', 'error');
-    
-    proState = {
-      active: true, step: 'story_architect', singleStep: true, episodes: [],
-      currentEpisodeIndex: 0, scriptWriterResponses: [], currentSceneIndex: 0
-    };
-    saveProState();
-    
-    const architectPrompt = proStoryArchitectEl.value.trim();
-    if (!architectPrompt) return log('Story Architect prompt missing.', 'error');
-    const fullPrompt = `${architectPrompt}\n\n${data[0]}`;
-    log('Replaying Story Architect...', 'running');
-    sendMessageToContentScript('run_single', {
-      prompt: fullPrompt, stepName: 'story_architect',
-      isNewChat: newChatToggle.checked, meta: { row: 1, col: 'B' }
-    });
-  });
-}
-
-if (replayWriterBtn) {
-  replayWriterBtn.addEventListener('click', async () => {
-    let data = await fetchColumnFromSheet('B');
-    if (!data || data.length === 0) return log('No data found in Column B for Script Writer', 'error');
-    
-    data = data.filter(d => d && d.trim().length > 0);
-    if (data.length === 0) return log('No episodes found in Column B', 'error');
-
-    proState = {
-      active: true, step: 'script_writer', singleStep: true, episodes: data,
-      currentEpisodeIndex: 0, scriptWriterResponses: [], currentSceneIndex: 0,
-      globalSceneOutputIndex: 0
-    };
-    saveProState();
-    log(`Replaying Script Writer with ${data.length} episodes...`, 'running');
-    runNextScriptWriter();
-  });
-}
-
-if (replaySceneBtn) {
-  replaySceneBtn.addEventListener('click', async () => {
-    let data = await fetchColumnFromSheet('C');
-    if (!data || data.length === 0) return log('No data found in Column C for Scene Details', 'error');
-    
-    data = data.filter(d => d && d.trim().length > 0);
-    if (data.length === 0) return log('No script outputs found in Column C', 'error');
-
-    proState = {
-      active: true, step: 'scene_details', singleStep: true, episodes: [],
-      currentEpisodeIndex: 0, scriptWriterResponses: data, currentSceneIndex: 0,
-      globalSceneOutputIndex: 0
-    };
-    saveProState();
-    log(`Replaying Scene Details with ${data.length} scenes...`, 'running');
-    runNextSceneDetails();
-  });
-}
-
-if (replayExtraCharacterBtn) {
-  replayExtraCharacterBtn.addEventListener('click', async () => {
-    proState = { active: true, step: 'extra_character', singleStep: true };
-    saveProState();
-    runExtraCharacter();
-  });
-}
-
-if (replayExtraLocationBtn) {
-  replayExtraLocationBtn.addEventListener('click', async () => {
-    proState = { active: true, step: 'extra_location', singleStep: true };
-    saveProState();
-    runExtraLocation();
   });
 }
 

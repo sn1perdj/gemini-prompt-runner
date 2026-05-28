@@ -9,14 +9,8 @@
 <body>
   <div class="app">
     <div class="header">
-      <div class="header-icon">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" stroke="#4F46E5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-      </div>
       <div class="header-text">
         <h1>Prompt Runner</h1>
-        <span class="subtitle">Google Gemini Automation</span>
       </div>
       <button class="header-settings-btn" id="settingsBtn" title="Settings">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -24,6 +18,29 @@
           <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
         </svg>
       </button>
+    </div>
+
+    <div class="workspace-controls surface-card">
+      <div class="workspace-control-row">
+        <div class="pro-mode-toggle">
+          <span class="mode-label">Mode</span>
+          <div class="segmented-control">
+            <input type="radio" id="modeAuto" name="proMode" value="auto" checked>
+            <label for="modeAuto">Automatic</label>
+            <input type="radio" id="modeManual" name="proMode" value="manual">
+            <label for="modeManual">Manual</label>
+          </div>
+        </div>
+        <div class="option-row compact">
+          <label class="toggle-label" for="newChatToggle">
+            <span class="toggle-text">New chat per step</span>
+          </label>
+          <label class="toggle-switch">
+            <input type="checkbox" id="newChatToggle" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </div>
     </div>
 
     <div id="settingsPanel" class="settings-panel" style="display: none;">
@@ -37,11 +54,6 @@
         </label>
         <input type="text" id="webhookUrl" class="webhook-input" placeholder="https://script.google.com/macros/s/.../exec">
       </div>
-    </div>
-
-    <div class="status-bar" id="statusBar">
-      <div class="status-indicator" id="statusDot"></div>
-      <span id="statusText">Ready</span>
     </div>
 
     <div class="progress-container" id="progressContainer" style="display: none;">
@@ -61,48 +73,22 @@
 
     <div id="pro-tab" class="tab-content active">
       <div class="tab-shell">
-        <div class="tab-hero tab-hero-pro">
-          <div>
-            <span class="tab-kicker">Narrative Pipeline</span>
-            <h2>Pro Workspace</h2>
-            <p>Manage story prompts, switch full prompt presets, and run the writing pipeline from one clean workspace.</p>
-          </div>
-          <div class="hero-aside">
-            <div class="pro-mode-toggle">
-              <span class="mode-label">Mode</span>
-              <div class="segmented-control">
-                <input type="radio" id="modeAuto" name="proMode" value="auto" checked>
-                <label for="modeAuto">Automatic</label>
-                <input type="radio" id="modeManual" name="proMode" value="manual">
-                <label for="modeManual">Manual</label>
-              </div>
-            </div>
-            <div class="option-row compact">
-              <label class="toggle-label">
-                <span class="toggle-text">New chat per step</span>
-                <span class="toggle-hint">Starts fresh for each prompt run</span>
-              </label>
-              <label class="toggle-switch">
-                <input type="checkbox" id="newChatToggle" checked>
-                <span class="toggle-slider"></span>
-              </label>
-            </div>
-          </div>
-        </div>
-
         <div class="surface-card preset-bar">
-          <div class="preset-bar-top">
-            <div>
-              <span class="section-eyebrow">Prompt Sets</span>
-              <label for="proPresetSelect">Prompt Preset</label>
-            </div>
-            <span class="preset-hint">Switching replaces all prompt boxes below</span>
-          </div>
-          <div class="preset-controls">
+          <div class="preset-controls compact">
+            <label for="proPresetSelect" class="preset-inline-label">Prompt Sets</label>
             <select id="proPresetSelect" class="preset-select"></select>
-            <button class="btn btn-secondary btn-preset" id="newPresetBtn" type="button">New</button>
-            <button class="btn btn-secondary btn-preset" id="renamePresetBtn" type="button">Rename</button>
-            <button class="btn btn-danger-soft btn-preset" id="deletePresetBtn" type="button">Delete</button>
+            <button class="btn-icon btn-secondary" id="newPresetBtn" type="button" title="New preset" aria-label="New preset">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+                <path d="M12 5v14M5 12h14"/>
+              </svg>
+            </button>
+            <button class="btn-icon btn-danger-soft" id="deletePresetBtn" type="button" title="Delete preset" aria-label="Delete preset">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 6h18"/>
+                <path d="M8 6V4h8v2"/>
+                <path d="M19 6l-1 14H6L5 6"/>
+              </svg>
+            </button>
           </div>
         </div>
 
@@ -128,61 +114,61 @@
               <h3>Script Development</h3>
             </div>
           </div>
-          <div class="form-group">
+          <div class="form-group prompt-step" data-step="script_outliner">
             <div class="label-row">
-              <label>Script Outliner Prompt</label>
-              <div class="action-buttons">
-                <button class="btn-play-step" id="playOutliner" style="display: none;" title="Start from here">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-                </button>
-                <button class="btn-replay-step" id="replayOutliner" style="display: none;" title="Replay only this prompt">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
-                </button>
-              </div>
+              <label class="step-label">
+                <input type="checkbox" class="step-check" id="stepScriptOutliner" data-step="script_outliner">
+                <span>Script Outliner Prompt</span>
+              </label>
+              <button class="btn-edit-step" type="button" data-toggle-step="script_outliner" title="Edit prompt" aria-label="Edit Script Outliner Prompt">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              </button>
             </div>
-            <textarea id="proScriptOutliner" placeholder="Enter script outliner prompt..." rows="3"></textarea>
+            <div class="step-editor">
+              <textarea id="proScriptOutliner" placeholder="Enter script outliner prompt..." rows="3"></textarea>
+            </div>
           </div>
-          <div class="form-group">
+          <div class="form-group prompt-step" data-step="story_architect">
             <div class="label-row">
-              <label>Story Architect Prompt</label>
-              <div class="action-buttons">
-                <button class="btn-play-step" id="playArchitect" style="display: none;" title="Start from here">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-                </button>
-                <button class="btn-replay-step" id="replayArchitect" style="display: none;" title="Replay only this prompt">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
-                </button>
-              </div>
+              <label class="step-label">
+                <input type="checkbox" class="step-check" id="stepStoryArchitect" data-step="story_architect">
+                <span>Story Architect Prompt</span>
+              </label>
+              <button class="btn-edit-step" type="button" data-toggle-step="story_architect" title="Edit prompt" aria-label="Edit Story Architect Prompt">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              </button>
             </div>
-            <textarea id="proStoryArchitect" placeholder="Enter story architect prompt..." rows="3"></textarea>
+            <div class="step-editor">
+              <textarea id="proStoryArchitect" placeholder="Enter story architect prompt..." rows="3"></textarea>
+            </div>
           </div>
-          <div class="form-group">
+          <div class="form-group prompt-step" data-step="script_writer">
             <div class="label-row">
-              <label>Script Writer Prompt</label>
-              <div class="action-buttons">
-                <button class="btn-play-step" id="playWriter" style="display: none;" title="Start from here">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-                </button>
-                <button class="btn-replay-step" id="replayWriter" style="display: none;" title="Replay only this prompt">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
-                </button>
-              </div>
+              <label class="step-label">
+                <input type="checkbox" class="step-check" id="stepScriptWriter" data-step="script_writer">
+                <span>Script Writer Prompt</span>
+              </label>
+              <button class="btn-edit-step" type="button" data-toggle-step="script_writer" title="Edit prompt" aria-label="Edit Script Writer Prompt">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              </button>
             </div>
-            <textarea id="proScriptWriter" placeholder="Enter script writer prompt..." rows="3"></textarea>
+            <div class="step-editor">
+              <textarea id="proScriptWriter" placeholder="Enter script writer prompt..." rows="3"></textarea>
+            </div>
           </div>
-          <div class="form-group">
+          <div class="form-group prompt-step" data-step="scene_details">
             <div class="label-row">
-              <label>Scene Details Prompt</label>
-              <div class="action-buttons">
-                <button class="btn-play-step" id="playScene" style="display: none;" title="Start from here">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-                </button>
-                <button class="btn-replay-step" id="replayScene" style="display: none;" title="Replay only this prompt">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
-                </button>
-              </div>
+              <label class="step-label">
+                <input type="checkbox" class="step-check" id="stepSceneDetails" data-step="scene_details">
+                <span>Scene Details Prompt</span>
+              </label>
+              <button class="btn-edit-step" type="button" data-toggle-step="scene_details" title="Edit prompt" aria-label="Edit Scene Details Prompt">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              </button>
             </div>
-            <textarea id="proSceneDetails" placeholder="Enter scene details prompt..." rows="3"></textarea>
+            <div class="step-editor">
+              <textarea id="proSceneDetails" placeholder="Enter scene details prompt..." rows="3"></textarea>
+            </div>
           </div>
         </div>
 
@@ -193,33 +179,33 @@
               <h3>Character and Location Generation</h3>
             </div>
           </div>
-          <div class="form-group">
+          <div class="form-group prompt-step" data-step="extra_character">
             <div class="label-row">
-              <label>Character Details Gen</label>
-              <div class="action-buttons">
-                <button class="btn-play-step" id="playExtraCharacter" style="display: none;" title="Start from here">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-                </button>
-                <button class="btn-replay-step" id="replayExtraCharacter" style="display: none;" title="Replay only this prompt">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
-                </button>
-              </div>
+              <label class="step-label">
+                <input type="checkbox" class="step-check" id="stepExtraCharacter" data-step="extra_character">
+                <span>Character Details Gen</span>
+              </label>
+              <button class="btn-edit-step" type="button" data-toggle-step="extra_character" title="Edit prompt" aria-label="Edit Character Details Prompt">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              </button>
             </div>
-            <textarea id="extraCharacterPrompt" placeholder="Enter character details prompt..." rows="4"></textarea>
+            <div class="step-editor">
+              <textarea id="extraCharacterPrompt" placeholder="Enter character details prompt..." rows="4"></textarea>
+            </div>
           </div>
-          <div class="form-group">
+          <div class="form-group prompt-step" data-step="extra_location">
             <div class="label-row">
-              <label>Location Details Gen</label>
-              <div class="action-buttons">
-                <button class="btn-play-step" id="playExtraLocation" style="display: none;" title="Start from here">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-                </button>
-                <button class="btn-replay-step" id="replayExtraLocation" style="display: none;" title="Replay only this prompt">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
-                </button>
-              </div>
+              <label class="step-label">
+                <input type="checkbox" class="step-check" id="stepExtraLocation" data-step="extra_location">
+                <span>Location Details Gen</span>
+              </label>
+              <button class="btn-edit-step" type="button" data-toggle-step="extra_location" title="Edit prompt" aria-label="Edit Location Details Prompt">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              </button>
             </div>
-            <textarea id="extraLocationPrompt" placeholder="Enter location details prompt..." rows="4"></textarea>
+            <div class="step-editor">
+              <textarea id="extraLocationPrompt" placeholder="Enter location details prompt..." rows="4"></textarea>
+            </div>
           </div>
         </div>
 
@@ -335,10 +321,13 @@
 
     <div class="log-container" id="logContainer">
       <div class="log-header">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/>
-        </svg>
-        Activity Log
+        <div class="log-title">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/>
+          </svg>
+          <span>Activity Log</span>
+        </div>
+        <button id="clearLogBtn" class="btn-clear-log" type="button">Clear</button>
       </div>
       <div id="logOutput" class="log-output"></div>
     </div>

@@ -53,6 +53,14 @@ To use the Pro Pipeline and save responses automatically, you must connect the e
 function doPost(e) {
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
   var data = JSON.parse(e.postData.contents);
+
+  if (data.mode === "pro" && Array.isArray(data.batch)) {
+    data.batch.forEach(function(item) {
+      var cell = item.column + item.row;
+      sheet.getRange(cell).setValue(item.response || "");
+    });
+    return ContentService.createTextOutput("Success").setMimeType(ContentService.MimeType.TEXT);
+  }
   
   if (data.mode === "pro") {
     // Pro mode: Paste exactly into specific cell
