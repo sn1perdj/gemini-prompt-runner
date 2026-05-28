@@ -156,6 +156,34 @@
               <textarea id="proScriptWriter" placeholder="Enter script writer prompt..." rows="3"></textarea>
             </div>
           </div>
+          <div class="form-group prompt-step" data-step="story_check">
+            <div class="label-row">
+              <label class="step-label">
+                <input type="checkbox" class="step-check" id="stepStoryCheck" data-step="story_check">
+                <span>Story Check Prompt</span>
+              </label>
+              <button class="btn-edit-step" type="button" data-toggle-step="story_check" title="Edit prompt" aria-label="Edit Story Check Prompt">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><path d="M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9 9 4.03 9 9z"/></svg>
+              </button>
+            </div>
+            <div class="step-editor">
+              <textarea id="proStoryCheck" placeholder="Enter story check prompt..." rows="3"></textarea>
+            </div>
+          </div>
+          <div class="form-group prompt-step" data-step="story_fix">
+            <div class="label-row">
+              <label class="step-label">
+                <input type="checkbox" class="step-check" id="stepStoryFix" data-step="story_fix">
+                <span>Story Fix Prompt</span>
+              </label>
+              <button class="btn-edit-step" type="button" data-toggle-step="story_fix" title="Edit prompt" aria-label="Edit Story Fix Prompt">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
+              </button>
+            </div>
+            <div class="step-editor">
+              <textarea id="proStoryFix" placeholder="Enter story fix prompt..." rows="4"></textarea>
+            </div>
+          </div>
           <div class="form-group prompt-step" data-step="scene_details">
             <div class="label-row">
               <label class="step-label">
@@ -228,14 +256,6 @@
 
     <div id="image-tab" class="tab-content">
       <div class="tab-shell">
-        <div class="tab-hero tab-hero-image">
-          <div>
-            <span class="tab-kicker">Visual Pipeline</span>
-            <h2>Image Workspace</h2>
-            <p>Generate scene prompts, rerun a single scene when needed, and keep character references close to the prompt builder.</p>
-          </div>
-        </div>
-
         <div class="surface-card section-card">
           <div class="section-heading">
             <div>
@@ -279,6 +299,7 @@
           <div class="form-group">
             <div class="label-row">
               <label>Character Ref</label>
+              <button id="importCharacterRefBtn" class="btn btn-secondary btn-inline" type="button">Import</button>
             </div>
             <textarea id="imageCharacterRef" placeholder="Enter character ref..." rows="4"></textarea>
           </div>

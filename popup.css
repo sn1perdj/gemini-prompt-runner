@@ -209,6 +209,13 @@ body {
   margin-bottom: 0;
 }
 
+.btn-inline {
+  min-width: auto;
+  padding: 7px 12px;
+  font-size: 12px;
+  line-height: 1.2;
+}
+
 .badge {
   background: #4F46E5;
   color: #FFFFFF;

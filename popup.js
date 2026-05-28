@@ -35,6 +35,8 @@ const proStoryIdeaEl = document.getElementById('proStoryIdea');
 const proScriptOutlinerEl = document.getElementById('proScriptOutliner');
 const proStoryArchitectEl = document.getElementById('proStoryArchitect');
 const proScriptWriterEl = document.getElementById('proScriptWriter');
+const proStoryCheckEl = document.getElementById('proStoryCheck');
+const proStoryFixEl = document.getElementById('proStoryFix');
 const proSceneDetailsEl = document.getElementById('proSceneDetails');
 const startProBtn = document.getElementById('startProBtn');
 const stopProBtn = document.getElementById('stopProBtn');
@@ -54,6 +56,7 @@ const stopImageBtn = document.getElementById('stopImageBtn');
 const imageStartSceneEl = document.getElementById('imageStartScene');
 const imageRerunSceneEl = document.getElementById('imageRerunScene');
 const imageCharacterRefEl = document.getElementById('imageCharacterRef');
+const importCharacterRefBtn = document.getElementById('importCharacterRefBtn');
 
 const PRO_MODE_STORAGE_KEY = 'proMode';
 const ACTIVE_TAB_STORAGE_KEY = 'activeWorkspaceTab';
@@ -63,10 +66,13 @@ const STEP_ORDER = [
   'script_outliner',
   'story_architect',
   'script_writer',
+  'story_check',
+  'story_fix',
   'scene_details',
   'extra_character',
   'extra_location'
 ];
+const STORY_CHECK_OUTPUT_STORAGE_KEY = 'storyCheckOutput';
 
 async function fetchColumnFromSheet(column) {
   const url = webhookUrlEl.value.trim();
@@ -194,6 +200,116 @@ function ensureImagePromptTag(prompt, sceneNumber, promptNumber) {
   const existingTag = parseImagePromptSceneTag(text);
   if (existingTag && existingTag.scene === sceneNumber) return text;
   return `${expectedTag}\n${text}`;
+}
+
+function parseImagePromptBlock(block) {
+  const lines = (block || '')
+    .split('\n')
+    .map(line => line.trim())
+    .filter(line => line.length > 0);
+
+  if (lines.length === 0) {
+    return { storyLine: '', promptText: '' };
+  }
+
+  const firstLine = lines[0];
+  const bracketedStoryLineMatch = firstLine.match(/^\[(.+)\]$/);
+  const hasBracketedStoryLine = Boolean(bracketedStoryLineMatch);
+  const storyLine = hasBracketedStoryLine ? bracketedStoryLineMatch[1].trim() : '';
+  const promptLines = hasBracketedStoryLine ? lines.slice(1) : lines;
+
+  return {
+    storyLine,
+    promptText: promptLines.join('\n').trim()
+  };
+}
+
+function extractCharacterRefName(characterText) {
+  const text = (characterText || '').toString().trim();
+  if (!text) return '';
+
+  const dashMatch = text.match(/^(.*?)(?:\s+[—-]\s+)(.*)$/);
+  if (dashMatch) {
+    return dashMatch[1].trim();
+  }
+
+  return text.split('\n')[0].trim();
+}
+
+async function importCharacterRefsFromSheet() {
+  let data = await fetchColumnFromSheet('E');
+  if (!Array.isArray(data) || data.length === 0) {
+    log('No character details found in Column E.', 'warning');
+    return;
+  }
+
+  const names = data
+    .map(extractCharacterRefName)
+    .filter(name => name.length > 0);
+
+  if (names.length === 0) {
+    log('No valid character names found in Column E.', 'warning');
+    return;
+  }
+
+  const lines = names.map((name, index) => `@img${index + 1} as ${name}`);
+  lines.push(`@img${names.length + 1} as progession for location`);
+
+  if (imageCharacterRefEl) {
+    imageCharacterRefEl.value = lines.join('\n');
+    await chrome.storage.local.set({ imageCharacterRef: imageCharacterRefEl.value.trim() });
+  }
+
+  log(`Imported ${names.length} character reference(s) from column E.`, 'success');
+}
+
+function splitEpisodes(text) {
+  return (text || '')
+    .split(/(?:^|\n)(?=[\s\*\-\#\[\]]*Episode\s*\d+)/i)
+    .map(item => item.trim())
+    .filter(item => item.length > 0);
+}
+
+function buildStoryFixPrompt(prompt, correctionInput, storyInput) {
+  return `${(prompt || '').trim()}
+
+<correction_input>
+${(correctionInput || '').trim()}
+</correction_input>
+
+<story_input>
+${(storyInput || '').trim()}
+</story_input>`;
+}
+
+async function saveEpisodesToColumnC(episodes) {
+  const normalizedEpisodes = Array.isArray(episodes)
+    ? episodes.map(item => (item || '').trim()).filter(item => item.length > 0)
+    : [];
+
+  let existingStories = await fetchColumnFromSheet('C');
+  existingStories = Array.isArray(existingStories)
+    ? existingStories.filter(item => item && item.trim().length > 0)
+    : [];
+
+  const totalRows = Math.max(existingStories.length, normalizedEpisodes.length);
+  const batchEntries = [];
+
+  for (let i = 0; i < totalRows; i++) {
+    batchEntries.push({
+      row: i + 1,
+      response: normalizedEpisodes[i] || ''
+    });
+  }
+
+  if (webhookUrlEl.value.trim().startsWith('https://script.google.com')) {
+    const saved = await saveSheetBatch('C', batchEntries);
+    if (saved) {
+      log(`Saved ${normalizedEpisodes.length} episode(s) to column C`, 'success');
+    }
+  }
+
+  return normalizedEpisodes;
 }
 
 
@@ -604,6 +720,8 @@ function getCurrentProPromptValues() {
     proScriptOutliner: proScriptOutlinerEl ? proScriptOutlinerEl.value.trim() : '',
     proStoryArchitect: proStoryArchitectEl ? proStoryArchitectEl.value.trim() : '',
     proScriptWriter: proScriptWriterEl ? proScriptWriterEl.value.trim() : '',
+    proStoryCheck: proStoryCheckEl ? proStoryCheckEl.value.trim() : '',
+    proStoryFix: proStoryFixEl ? proStoryFixEl.value.trim() : '',
     proSceneDetails: proSceneDetailsEl ? proSceneDetailsEl.value.trim() : '',
     extraCharacterPrompt: extraCharacterPromptEl ? extraCharacterPromptEl.value.trim() : '',
     extraLocationPrompt: extraLocationPromptEl ? extraLocationPromptEl.value.trim() : '',
@@ -617,6 +735,8 @@ function applyProPromptValues(values = {}) {
   if (proScriptOutlinerEl) proScriptOutlinerEl.value = values.proScriptOutliner || '';
   if (proStoryArchitectEl) proStoryArchitectEl.value = values.proStoryArchitect || '';
   if (proScriptWriterEl) proScriptWriterEl.value = values.proScriptWriter || '';
+  if (proStoryCheckEl) proStoryCheckEl.value = values.proStoryCheck || '';
+  if (proStoryFixEl) proStoryFixEl.value = values.proStoryFix || '';
   if (proSceneDetailsEl) proSceneDetailsEl.value = values.proSceneDetails || '';
   if (extraCharacterPromptEl) extraCharacterPromptEl.value = values.extraCharacterPrompt || '';
   if (extraLocationPromptEl) extraLocationPromptEl.value = values.extraLocationPrompt || '';
@@ -679,6 +799,8 @@ async function saveActiveProPresetValues(options = {}) {
     proScriptOutliner: values.proScriptOutliner,
     proStoryArchitect: values.proStoryArchitect,
     proScriptWriter: values.proScriptWriter,
+    proStoryCheck: values.proStoryCheck,
+    proStoryFix: values.proStoryFix,
     proSceneDetails: values.proSceneDetails,
     extraCharacterPrompt: values.extraCharacterPrompt,
     extraLocationPrompt: values.extraLocationPrompt,
@@ -908,6 +1030,85 @@ function dispatchSelectedProStep(stepName) {
     return;
   }
 
+  if (stepName === 'story_check') {
+    (async () => {
+      let data = await fetchColumnFromSheet('C');
+      if (!data || data.length === 0) {
+        finishProRun('');
+        log('No data found in Column C for Story Check', 'error');
+        return;
+      }
+      data = data.filter(d => d && d.trim().length > 0);
+      if (data.length === 0) {
+        finishProRun('');
+        log('No story episodes found in Column C', 'error');
+        return;
+      }
+      const storyCheckPrompt = proStoryCheckEl ? proStoryCheckEl.value.trim() : '';
+      if (!storyCheckPrompt) {
+        finishProRun('');
+        log('Story Check prompt missing.', 'error');
+        return;
+      }
+      const fullStory = data.join('\n\n');
+      proState.step = 'story_check';
+      proState.storyEpisodes = data;
+      proState.originalCombinedStory = fullStory;
+      saveProState();
+      log('Running Story Check...', 'running');
+      sendMessageToContentScript('run_single', {
+        prompt: `${storyCheckPrompt}\n\n${fullStory}`,
+        stepName: 'story_check',
+        isNewChat: newChatToggle.checked,
+        meta: { col: 'C' }
+      });
+    })();
+    return;
+  }
+
+  if (stepName === 'story_fix') {
+    (async () => {
+      let data = await fetchColumnFromSheet('C');
+      if (!data || data.length === 0) {
+        finishProRun('');
+        log('No data found in Column C for Story Fix', 'error');
+        return;
+      }
+      data = data.filter(d => d && d.trim().length > 0);
+      if (data.length === 0) {
+        finishProRun('');
+        log('No story episodes found in Column C', 'error');
+        return;
+      }
+      const storyFixPrompt = proStoryFixEl ? proStoryFixEl.value.trim() : '';
+      if (!storyFixPrompt) {
+        finishProRun('');
+        log('Story Fix prompt missing.', 'error');
+        return;
+      }
+      const storageData = await chrome.storage.local.get(STORY_CHECK_OUTPUT_STORAGE_KEY);
+      const correctionInput = storageData[STORY_CHECK_OUTPUT_STORAGE_KEY] || '';
+      if (!correctionInput.trim()) {
+        finishProRun('');
+        log('Run Story Check first so Story Fix has a correction report.', 'error');
+        return;
+      }
+      const fullStory = data.join('\n\n');
+      proState.step = 'story_fix';
+      proState.storyEpisodes = data;
+      proState.originalCombinedStory = fullStory;
+      saveProState();
+      log('Running Story Fix...', 'running');
+      sendMessageToContentScript('run_single', {
+        prompt: buildStoryFixPrompt(storyFixPrompt, correctionInput, fullStory),
+        stepName: 'story_fix',
+        isNewChat: newChatToggle.checked,
+        meta: { col: 'C' }
+      });
+    })();
+    return;
+  }
+
   if (stepName === 'scene_details') {
     (async () => {
       let data = await fetchColumnFromSheet('C');
@@ -1104,12 +1305,19 @@ stopBtn.addEventListener('click', async () => {
   updateProgress(0, 0);
 });
 
+if (importCharacterRefBtn) {
+  importCharacterRefBtn.addEventListener('click', async () => {
+    await importCharacterRefsFromSheet();
+  });
+}
+
 chrome.runtime.onMessage.addListener((message) => {
   if (message.type === 'progress') {
     const { currentIndex, total, currentPrompt } = message;
     updateProgress(currentIndex, total);
     setStatus(`Running prompt ${currentIndex}/${total}`, 'running');
-    const preview = currentPrompt.substring(0, 50) + (currentPrompt.length > 50 ? '...' : '');
+    const promptText = typeof currentPrompt === 'string' ? currentPrompt : '';
+    const preview = promptText.substring(0, 50) + (promptText.length > 50 ? '...' : '');
     log(`Prompt ${currentIndex}/${total}: "${preview}"`, 'running');
   } else if (message.type === 'complete') {
     const { currentIndex, total } = message;
@@ -1185,7 +1393,7 @@ chrome.runtime.onMessage.addListener((message) => {
 
     const webhookUrl = webhookUrlEl.value.trim();
     if (webhookUrl && webhookUrl.startsWith('https://script.google.com')) {
-      if (stepName !== 'story_architect' && stepName !== 'scene_details' && stepName !== 'image_prompt') {
+      if (stepName !== 'story_architect' && stepName !== 'scene_details' && stepName !== 'image_prompt' && stepName !== 'story_check' && stepName !== 'story_fix') {
         fetch(webhookUrl, {
           method: 'POST',
           body: JSON.stringify({
@@ -1224,7 +1432,7 @@ chrome.runtime.onMessage.addListener((message) => {
         meta: { row: 1, col: 'B' }
       });
     } else if (stepName === 'story_architect') {
-      const episodes = (response || '').split(/(?:^|\n)(?=[\s\*\-\#\[\]]*Episode\s*\d+)/i).map(e => e.trim()).filter(e => e.length > 0);
+      const episodes = splitEpisodes(response || '');
       proState.episodes = episodes;
       log(`Found ${episodes.length} episodes.`, 'info');
       
@@ -1239,11 +1447,11 @@ chrome.runtime.onMessage.addListener((message) => {
             log(`Saved ${batchEntries.length} episode(s) to column B`, 'success');
           }
         }
+        if (proState.runMode === 'selected') {
+          advanceSelectedProStep();
+          return;
+        }
         if (proState.singleStep) {
-          if (proState.runMode === 'selected') {
-            advanceSelectedProStep();
-            return;
-          }
           finishProRun('Story Architect complete.');
           return;
         }
@@ -1258,6 +1466,59 @@ chrome.runtime.onMessage.addListener((message) => {
       proState.currentEpisodeIndex++;
       saveProState();
       runNextScriptWriter();
+    } else if (stepName === 'story_check') {
+      const combinedStory = proState.originalCombinedStory || '';
+      (async () => {
+        await chrome.storage.local.set({ [STORY_CHECK_OUTPUT_STORAGE_KEY]: response || '' });
+        log('Story Check report saved to browser storage.', 'success');
+
+        if (proState.runMode === 'selected') {
+          advanceSelectedProStep();
+          return;
+        }
+        if (proState.singleStep) {
+          finishProRun('Story Check complete.');
+          return;
+        }
+
+        const storyFixPrompt = proStoryFixEl ? proStoryFixEl.value.trim() : '';
+        if (!storyFixPrompt) {
+          log('Story Fix prompt missing.', 'warning');
+          proState.active = false;
+          saveProState();
+          return;
+        }
+        proState.step = 'story_fix';
+        saveProState();
+        log('Running Story Fix...', 'running');
+        sendMessageToContentScript('run_single', {
+          prompt: buildStoryFixPrompt(storyFixPrompt, response || '', combinedStory),
+          stepName: 'story_fix',
+          isNewChat: newChatToggle.checked,
+          meta: { col: 'C' }
+        });
+      })();
+    } else if (stepName === 'story_fix') {
+      const fixedEpisodes = splitEpisodes(response || '');
+      log(`Found ${fixedEpisodes.length} fixed episode(s).`, 'info');
+
+      (async () => {
+        proState.scriptWriterResponses = await saveEpisodesToColumnC(fixedEpisodes);
+
+        if (proState.runMode === 'selected') {
+          advanceSelectedProStep();
+          return;
+        }
+        if (proState.singleStep) {
+          finishProRun('Story Fix complete.');
+          return;
+        }
+
+        proState.step = 'scene_details';
+        proState.currentSceneIndex = 0;
+        saveProState();
+        runNextSceneDetails();
+      })();
     } else if (stepName === 'scene_details') {
       const scenes = (response || '').split(/(?:^|\n)(?=[\s\*\-\#\[\]]*Scene\s*\d+)/i).map(s => s.trim()).filter(s => s.length > 0);
       log(`Found ${scenes.length} scenes.`, 'info');
@@ -1298,11 +1559,11 @@ chrome.runtime.onMessage.addListener((message) => {
             log(`Saved ${batchEntries.length} character detail(s) to column E`, 'success');
           }
         }
+        if (proState.runMode === 'selected') {
+          advanceSelectedProStep();
+          return;
+        }
         if (proState.singleStep) {
-          if (proState.runMode === 'selected') {
-            advanceSelectedProStep();
-            return;
-          }
           finishProRun('Character Details complete.');
           return;
         }
@@ -1335,16 +1596,19 @@ chrome.runtime.onMessage.addListener((message) => {
         finishProRun('Location Details complete.');
       })();
     } else if (stepName === 'image_prompt') {
-      const prompts = (response || '').split(/\n\s*\n/).map(s => s.trim()).filter(s => s.length > 0);
-      log(`Found ${prompts.length} image prompts in this scene.`, 'info');
+      const promptBlocks = (response || '').split(/\n\s*\n/).map(s => s.trim()).filter(s => s.length > 0);
+      log(`Found ${promptBlocks.length} image prompts in this scene.`, 'info');
 
       (async () => {
         if (webhookUrl && webhookUrl.startsWith('https://script.google.com')) {
-          const batchEntries = [];
-          for (let i = 0; i < prompts.length; i++) {
+          const imagePromptEntries = [];
+          const storyLineEntries = [];
+          for (let i = 0; i < promptBlocks.length; i++) {
             const sceneNumber = proState.imageRerunScene || (proState.currentImageIndex + 1);
             const promptNumber = i + 1;
-            const promptText = ensureImagePromptTag(prompts[i], sceneNumber, promptNumber);
+            const parsedBlock = parseImagePromptBlock(promptBlocks[i]);
+            const promptSource = parsedBlock.promptText || promptBlocks[i];
+            const promptText = ensureImagePromptTag(promptSource, sceneNumber, promptNumber);
             let row;
 
             if (proState.imageTargetRows && proState.imageTargetRows.length > 0) {
@@ -1358,13 +1622,15 @@ chrome.runtime.onMessage.addListener((message) => {
               row = proState.globalImageOutputIndex;
             }
 
-            batchEntries.push({ row, response: promptText });
+            imagePromptEntries.push({ row, response: promptText });
+            storyLineEntries.push({ row, response: parsedBlock.storyLine });
           }
 
-          const saved = await saveSheetBatch('G', batchEntries);
-          if (saved) {
-            const rowsLabel = batchEntries.map(entry => `G${entry.row}`).join(', ');
-            log(`Saved ${batchEntries.length} image prompt(s) to ${rowsLabel}`, 'success');
+          const promptsSaved = await saveSheetBatch('G', imagePromptEntries);
+          const storyLinesSaved = await saveSheetBatch('H', storyLineEntries);
+          if (promptsSaved && storyLinesSaved) {
+            const rowsLabel = imagePromptEntries.map(entry => `G${entry.row}/H${entry.row}`).join(', ');
+            log(`Saved ${imagePromptEntries.length} image prompt(s) to ${rowsLabel}`, 'success');
           }
         }
         
@@ -1427,7 +1693,7 @@ async function loadSavedSettings() {
   await loadPrompts();
   const data = await chrome.storage.local.get([
     'systemPrompt', 'newChat', 'webhookUrl', 
-    'proStoryIdea', 'proScriptOutliner', 'proStoryArchitect', 'proScriptWriter', 'proSceneDetails', 'proState',
+    'proStoryIdea', 'proScriptOutliner', 'proStoryArchitect', 'proScriptWriter', 'proStoryCheck', 'proStoryFix', 'proSceneDetails', 'proState',
     'extraCharacterPrompt', 'extraLocationPrompt', 'imagePromptGen', 'imageStartScene', 'imageRerunScene', 'imageCharacterRef',
     PRO_PRESET_STORAGE_KEY, ACTIVE_PRO_PRESET_STORAGE_KEY,
     PRO_MODE_STORAGE_KEY, ACTIVE_TAB_STORAGE_KEY, PRO_SELECTED_STEPS_STORAGE_KEY, PRO_EXPANDED_STEPS_STORAGE_KEY
@@ -1441,6 +1707,8 @@ async function loadSavedSettings() {
   if (data.proScriptOutliner && proScriptOutlinerEl) proScriptOutlinerEl.value = data.proScriptOutliner;
   if (data.proStoryArchitect && proStoryArchitectEl) proStoryArchitectEl.value = data.proStoryArchitect;
   if (data.proScriptWriter && proScriptWriterEl) proScriptWriterEl.value = data.proScriptWriter;
+  if (data.proStoryCheck && proStoryCheckEl) proStoryCheckEl.value = data.proStoryCheck;
+  if (data.proStoryFix && proStoryFixEl) proStoryFixEl.value = data.proStoryFix;
   if (data.proSceneDetails && proSceneDetailsEl) proSceneDetailsEl.value = data.proSceneDetails;
   if (data.proState) proState = data.proState;
 
@@ -1469,7 +1737,7 @@ async function loadSavedSettings() {
     });
   }
 
-  [proStoryIdeaEl, proScriptOutlinerEl, proStoryArchitectEl, proScriptWriterEl, proSceneDetailsEl, extraCharacterPromptEl, extraLocationPromptEl, imagePromptGenEl, imageStartSceneEl, imageRerunSceneEl, imageCharacterRefEl].forEach(el => {
+  [proStoryIdeaEl, proScriptOutlinerEl, proStoryArchitectEl, proScriptWriterEl, proStoryCheckEl, proStoryFixEl, proSceneDetailsEl, extraCharacterPromptEl, extraLocationPromptEl, imagePromptGenEl, imageStartSceneEl, imageRerunSceneEl, imageCharacterRefEl].forEach(el => {
     if (el) {
       if (el !== imageStartSceneEl && el !== imageRerunSceneEl && el !== imageCharacterRefEl) {
         el.addEventListener('input', () => {
@@ -1626,18 +1894,34 @@ function runNextScriptWriter() {
   if (!proState.active) return;
   const idx = proState.currentEpisodeIndex;
   if (idx >= proState.episodes.length) {
-    if (proState.singleStep) {
-      if (proState.runMode === 'selected') {
+    if (proState.runMode === 'selected') {
+      (async () => {
+        await saveEpisodesToColumnC(proState.scriptWriterResponses || []);
         advanceSelectedProStep();
-        return;
-      }
+      })();
+      return;
+    }
+    if (proState.singleStep) {
       finishProRun('Script Writer complete.');
       return;
     }
-    proState.step = 'scene_details';
-    proState.currentSceneIndex = 0;
+    const storyCheckPrompt = proStoryCheckEl ? proStoryCheckEl.value.trim() : '';
+    if (!storyCheckPrompt) {
+      log('Story Check prompt missing. Pipeline halted.', 'warning');
+      proState.active = false;
+      saveProState();
+      return;
+    }
+    proState.step = 'story_check';
+    proState.originalCombinedStory = (proState.scriptWriterResponses || []).join('\n\n');
     saveProState();
-    runNextSceneDetails();
+    log('Running Story Check...', 'running');
+    sendMessageToContentScript('run_single', {
+      prompt: `${storyCheckPrompt}\n\n${proState.originalCombinedStory}`,
+      stepName: 'story_check',
+      isNewChat: newChatToggle.checked,
+      meta: { col: 'C' }
+    });
     return;
   }
   
@@ -1664,11 +1948,11 @@ function runNextSceneDetails() {
   if (!proState.active) return;
   const idx = proState.currentSceneIndex;
   if (idx >= proState.scriptWriterResponses.length) {
+    if (proState.runMode === 'selected') {
+      advanceSelectedProStep();
+      return;
+    }
     if (proState.singleStep) {
-      if (proState.runMode === 'selected') {
-        advanceSelectedProStep();
-        return;
-      }
       finishProRun('Scene Details complete.');
       return;
     }
@@ -1858,6 +2142,10 @@ async function setupImagePromptStart(isSingleStep) {
       const cleared = await saveSheetCell('G', row, '');
       if (cleared) {
         log(`Cleared G${row}`, 'warning');
+      }
+      const clearedStory = await saveSheetCell('H', row, '');
+      if (clearedStory) {
+        log(`Cleared H${row}`, 'warning');
       }
     }
   }
